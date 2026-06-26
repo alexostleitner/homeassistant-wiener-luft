@@ -73,7 +73,7 @@ def _coordinator(
 
 def _expected_entity_base(component: str, station_code: str = "STA1") -> str:
     measurement_spec = MEASUREMENT_SPECS[component]
-    return f"wiener_luft_{measurement_spec.entity_id_slug}_{station_code.lower()}"
+    return f"wiener_luft_{measurement_spec.measurement_slug}_{station_code.lower()}"
 
 
 def _expected_unique_id(component: str) -> str:

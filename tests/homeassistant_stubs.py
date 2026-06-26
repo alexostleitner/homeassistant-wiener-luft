@@ -34,7 +34,6 @@ def install_homeassistant_stubs() -> None:
         "homeassistant.core",
         "homeassistant.helpers",
         "homeassistant.helpers.device_registry",
-        "homeassistant.helpers.entity_registry",
         "homeassistant.helpers.entity_platform",
         "homeassistant.helpers.update_coordinator",
         "homeassistant.util",
@@ -81,16 +80,6 @@ def install_homeassistant_stubs() -> None:
     modules["homeassistant.core"].HomeAssistant = type("HomeAssistant", (), {})
     modules["homeassistant.helpers.device_registry"].DeviceInfo = type(
         "DeviceInfo", (dict,), {}
-    )
-    modules["homeassistant.helpers.entity_registry"].async_get = (
-        lambda hass: getattr(hass, "entity_registry", None)
-    )
-    modules["homeassistant.helpers.entity_registry"].async_entries_for_config_entry = (
-        lambda registry, entry_id: [
-            entry
-            for entry in getattr(registry, "entries", [])
-            if getattr(entry, "config_entry_id", None) == entry_id
-        ]
     )
     modules["homeassistant.helpers.entity_platform"].AddEntitiesCallback = type(
         "AddEntitiesCallback", (), {}

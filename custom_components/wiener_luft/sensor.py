@@ -16,11 +16,18 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from homeassistant.util import slugify
+
 from .client import SelectedMetric, Station
 from .const import DOMAIN
 from .coordinator import IntegrationCoordinator
-from .entity_ids import sensor_entity_id, sensor_unique_id
 from .measurements import MEASUREMENT_SPECS, MeasurementSpec
+
+
+def sensor_id_base(measurement_spec: MeasurementSpec, station_code: str) -> str:
+    """Return the full sensor slug used for unique_id and entity_id."""
+
+    return f"{DOMAIN}_{measurement_spec.measurement_slug}_{slugify(station_code)}"
 
 
 def _device_info_for_station(station: Station) -> DeviceInfo:
@@ -125,9 +132,10 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             SensorStateClass, measurement_spec.state_class
         )
         self._attr_icon = measurement_spec.icon
-        self._attr_unique_id = sensor_unique_id(measurement_spec, station.code)
+        sensor_id_base_value = sensor_id_base(measurement_spec, station.code)
+        self._attr_unique_id = sensor_id_base_value
         self._attr_device_info = _device_info_for_station(station)
-        self.entity_id = sensor_entity_id(measurement_spec, station.code)
+        self.entity_id = f"sensor.{sensor_id_base_value}"
 
     @property
     def available(self) -> bool:
