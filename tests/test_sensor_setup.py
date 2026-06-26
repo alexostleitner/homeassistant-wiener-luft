@@ -101,16 +101,20 @@ class MeasurementSensorTest(unittest.TestCase):
         self.assertEqual("°", sensor.native_unit_of_measurement)
         self.assertEqual(
             {
-                "station_code": "STA1",
-                "station_name": "Station 1",
                 "district": 1,
                 "latitude": 48.2,
                 "longitude": 16.3,
-                "component": "WR",
-                "measurement_type": "HMW",
-                "station_url": "https://example.test/stations/sta1",
             },
             sensor.extra_state_attributes,
+        )
+        self.assertEqual(
+            {
+                "identifiers": {("wiener_luft", "STA1")},
+                "name": "Station 1",
+                "manufacturer": "Wiener Luft",
+                "configuration_url": "https://example.test/stations/sta1",
+            },
+            sensor._attr_device_info,
         )
         coordinator.last_update_success = False
         self.assertFalse(sensor.available)
@@ -132,15 +136,19 @@ class MeasurementSensorTest(unittest.TestCase):
         self.assertEqual("µg/m³", sensor.native_unit_of_measurement)
         self.assertEqual(
             {
-                "station_code": "STA1",
-                "station_name": "Station 1",
                 "district": 1,
                 "latitude": 48.2,
                 "longitude": 16.3,
-                "component": "PM25",
-                "measurement_type": None,
             },
             sensor.extra_state_attributes,
+        )
+        self.assertEqual(
+            {
+                "identifiers": {("wiener_luft", "STA1")},
+                "name": "Station 1",
+                "manufacturer": "Wiener Luft",
+            },
+            sensor._attr_device_info,
         )
 
     def test_entity_id_uses_english_weather_slugs_only(self) -> None:

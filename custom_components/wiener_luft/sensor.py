@@ -152,19 +152,11 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         """Return stable sensor attributes."""
 
         station = self._current_station
-        reading = self._reading
-        attributes: dict[str, Any] = {
-            "station_code": self._station_code,
-            "station_name": station.name,
+        return {
             "district": station.district,
             ATTR_LATITUDE: station.latitude,
             ATTR_LONGITUDE: station.longitude,
-            "component": self._component,
-            "measurement_type": reading.measurement_type if reading else None,
         }
-        if station.station_url:
-            attributes["station_url"] = station.station_url
-        return attributes
 
     @property
     def _reading(self) -> SelectedMetric | None:
