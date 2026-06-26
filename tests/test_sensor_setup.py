@@ -72,6 +72,10 @@ def _coordinator(
     return coordinator
 
 
+def _expected_unique_id(component: str) -> str:
+    return f"wiener_luft_sta1_{component.lower()}"
+
+
 class MeasurementSensorTest(unittest.TestCase):
     def test_sensor_state(self) -> None:
         station = _station(station_url="https://example.test/stations/sta1")
@@ -85,7 +89,10 @@ class MeasurementSensorTest(unittest.TestCase):
             "WR",
             MEASUREMENT_SPECS["WR"],
         )
-        self.assertEqual("sensor.wiener_luft_wr_station_1", sensor.entity_id)
+        self.assertEqual(
+            "sensor.wiener_luft_wind_direction_station_1", sensor.entity_id
+        )
+        self.assertEqual(_expected_unique_id("WR"), sensor._attr_unique_id)
         self.assertTrue(sensor.available)
         self.assertEqual(180.0, sensor.native_value)
         self.assertEqual("°", sensor.native_unit_of_measurement)
@@ -128,6 +135,29 @@ class MeasurementSensorTest(unittest.TestCase):
             },
             sensor.extra_state_attributes,
         )
+
+    def test_entity_id_uses_english_weather_slugs_only(self) -> None:
+        station = _station()
+        coordinator = _coordinator({})
+
+        cases = {
+            "LTM": "sensor.wiener_luft_temperature_station_1",
+            "RF": "sensor.wiener_luft_humidity_station_1",
+            "WG": "sensor.wiener_luft_wind_speed_station_1",
+            "WR": "sensor.wiener_luft_wind_direction_station_1",
+            "PM25": "sensor.wiener_luft_pm25_station_1",
+        }
+
+        for component, expected_entity_id in cases.items():
+            with self.subTest(component=component):
+                sensor = MeasurementSensor(
+                    coordinator,
+                    station,
+                    component,
+                    MEASUREMENT_SPECS[component],
+                )
+                self.assertEqual(expected_entity_id, sensor.entity_id)
+                self.assertEqual(_expected_unique_id(component), sensor._attr_unique_id)
 
 
 class SensorSetupTest(unittest.TestCase):

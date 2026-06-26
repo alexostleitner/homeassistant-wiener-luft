@@ -22,8 +22,6 @@ from .const import DOMAIN
 from .coordinator import IntegrationCoordinator
 from .measurements import MEASUREMENT_SPECS, MeasurementSpec
 
-NOX_ICON = "mdi:molecule"
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -104,16 +102,14 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
 
         self._attr_name = measurement_spec.name
         self._attr_device_class = (
-            SensorDeviceClass[measurement_spec.device_class]
+            getattr(SensorDeviceClass, measurement_spec.device_class)
             if measurement_spec.device_class is not None
             else None
         )
-        self._attr_state_class = (
-            SensorStateClass.MEASUREMENT_ANGLE
-            if component == "WR"
-            else SensorStateClass.MEASUREMENT
+        self._attr_state_class = getattr(
+            SensorStateClass, measurement_spec.state_class
         )
-        self._attr_icon = NOX_ICON if component == "NOX" else None
+        self._attr_icon = measurement_spec.icon
         self._attr_unique_id = f"{DOMAIN}_{station.code.lower()}_{component_slug}"
         device_info: DeviceInfo = {
             "identifiers": {(DOMAIN, self._station_code)},
@@ -123,7 +119,8 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         if station.station_url:
             device_info["configuration_url"] = station.station_url
         self._attr_device_info = device_info
-        self.entity_id = f"sensor.{DOMAIN}_{component_slug}_{station_slug}"
+        entity_id_slug = measurement_spec.entity_id_slug or component_slug
+        self.entity_id = f"sensor.{DOMAIN}_{entity_id_slug}_{station_slug}"
 
     @property
     def available(self) -> bool:
