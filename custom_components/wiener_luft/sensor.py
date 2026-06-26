@@ -10,32 +10,20 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_LATITUDE, ATTR_LONGITUDE
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import slugify
 
-from .client import SelectedMetric, Station
 from .const import DOMAIN
 from .coordinator import IntegrationCoordinator
 from .measurements import MEASUREMENT_SPECS, MeasurementSpec
-
-
-def _sensor_id_base(measurement_spec: MeasurementSpec, station_code: str) -> str:
-    return f"{DOMAIN}_{measurement_spec.measurement_slug}_{slugify(station_code)}"
-
-
-def _device_info_for_station(station: Station) -> DeviceInfo:
-    device_info: DeviceInfo = {
-        "identifiers": {(DOMAIN, station.code)},
-        "name": station.name,
-        "manufacturer": "Wiener Luft",
-    }
-    if station.station_url:
-        device_info["configuration_url"] = station.station_url
-    return device_info
+from .measurements_parser import SelectedMetric
+from .station import (
+    Station,
+    station_device_info,
+    station_state_attributes,
+)
 
 
 def _build_entities(
@@ -132,10 +120,12 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             SensorStateClass, measurement_spec.state_class
         )
         self._attr_icon = measurement_spec.icon
-        sensor_id_base_value = _sensor_id_base(measurement_spec, station.code)
-        self._attr_unique_id = sensor_id_base_value
-        self._attr_device_info = _device_info_for_station(station)
-        self.entity_id = f"sensor.{sensor_id_base_value}"
+        unique_id = (
+            f"{DOMAIN}_{measurement_spec.measurement_slug}_{slugify(station.code)}"
+        )
+        self._attr_unique_id = unique_id
+        self._attr_device_info = station_device_info(station)
+        self.entity_id = f"sensor.{unique_id}"
 
     @property
     def available(self) -> bool:
@@ -158,12 +148,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        station = self._current_station
-        return {
-            "district": station.district,
-            ATTR_LATITUDE: station.latitude,
-            ATTR_LONGITUDE: station.longitude,
-        }
+        return station_state_attributes(self._current_station)
 
     @property
     def _reading(self) -> SelectedMetric | None:

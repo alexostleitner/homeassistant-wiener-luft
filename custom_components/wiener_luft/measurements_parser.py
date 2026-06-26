@@ -1,32 +1,15 @@
-"""Parsers and normalization helpers for source payloads."""
+"""Parsers and normalized data models for measurement payloads."""
 
 from __future__ import annotations
 
 import csv
-import json
 import logging
 from dataclasses import dataclass
-from typing import Any
 
-from .measurements import (
-    MEASUREMENT_PRIORITY,
-    MEASUREMENT_SPECS,
-    MISSING_VALUES,
-)
+from .measurements import MEASUREMENT_PRIORITY, MEASUREMENT_SPECS
+from .parsing import decode_payload, parse_number
 
 LOGGER = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class Station:
-    """Station metadata."""
-
-    code: str
-    name: str
-    district: int | None
-    latitude: float | None
-    longitude: float | None
-    station_url: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,40 +26,6 @@ class LumesMeasurements:
     """Parsed measurement data."""
 
     selected: dict[tuple[str, str], SelectedMetric]
-
-
-def decode_payload(payload: str | bytes) -> str:
-    """Decode source payloads, accepting the Windows-1252 CSV encoding."""
-
-    if isinstance(payload, str):
-        return payload
-
-    for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
-        try:
-            return payload.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-
-    return payload.decode("latin-1", errors="replace")
-
-
-def parse_number(value: str | int | float | None) -> float | None:
-    """Parse a source number, treating declared placeholders as missing."""
-
-    if value is None:
-        return None
-    if isinstance(value, int | float):
-        return None if value == -999 else float(value)
-
-    text = value.strip()
-    if text.upper() in MISSING_VALUES:
-        return None
-
-    try:
-        return float(text.replace(",", "."))
-    except ValueError:
-        LOGGER.warning("Could not parse numeric value %r", value)
-        return None
 
 
 def parse_lumes_csv(payload: str | bytes) -> LumesMeasurements:
@@ -114,53 +63,6 @@ def parse_lumes_csv(payload: str | bytes) -> LumesMeasurements:
     return LumesMeasurements(selected=selected)
 
 
-def parse_station_geojson(payload: str | bytes | dict[str, Any]) -> dict[str, Station]:
-    """Parse station metadata GeoJSON keyed by NAME_KURZ."""
-
-    data = (
-        json.loads(decode_payload(payload))
-        if not isinstance(payload, dict)
-        else payload
-    )
-    features = data.get("features")
-    if not isinstance(features, list):
-        msg = "Station GeoJSON must contain a features list"
-        raise ValueError(msg)
-
-    stations: dict[str, Station] = {}
-    for feature in features:
-        if not isinstance(feature, dict):
-            continue
-        properties = feature.get("properties") or {}
-        code = str(properties.get("NAME_KURZ") or "").strip().upper()
-        if not code:
-            LOGGER.warning("Skipping station feature without NAME_KURZ")
-            continue
-
-        coordinates = (feature.get("geometry") or {}).get("coordinates") or []
-        if isinstance(coordinates, (list, tuple)) and len(coordinates) >= 2:
-            longitude = parse_number(coordinates[0])
-            latitude = parse_number(coordinates[1])
-        else:
-            longitude = None
-            latitude = None
-        district = parse_number(properties.get("BEZIRK"))
-        station_url = str(properties.get("URL_INFO") or "").strip() or None
-        station = Station(
-            code=code,
-            name=str(properties.get("NAME") or code).strip(),
-            district=int(district) if district is not None else None,
-            latitude=latitude,
-            longitude=longitude,
-            station_url=station_url,
-        )
-        if code in stations:
-            LOGGER.warning("Duplicate station metadata for NAME_KURZ=%s", code)
-        stations[code] = station
-
-    return stations
-
-
 def _choose_column(
     row: list[str], candidates: list[tuple[int, str, str]]
 ) -> tuple[int, str, str] | None:
@@ -169,9 +71,7 @@ def _choose_column(
             if column[1] != averaging_type:
                 continue
             if (
-                parse_number(
-                    row[column[0]] if column[0] < len(row) else None
-                )
+                parse_number(row[column[0]] if column[0] < len(row) else None)
                 is not None
             ):
                 return column

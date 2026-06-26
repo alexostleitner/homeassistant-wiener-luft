@@ -10,21 +10,21 @@ from homeassistant_stubs import install_homeassistant_stubs
 
 install_homeassistant_stubs()
 
-from custom_components.wiener_luft.client import (  # noqa: E402
-    LumesMeasurements,
-    SelectedMetric,
-    Station,
-)
 from custom_components.wiener_luft.coordinator import (  # noqa: E402
     IntegrationData,
 )
 from custom_components.wiener_luft.measurements import (  # noqa: E402
     MEASUREMENT_SPECS,
 )
+from custom_components.wiener_luft.measurements_parser import (  # noqa: E402
+    LumesMeasurements,
+    SelectedMetric,
+)
 from custom_components.wiener_luft.sensor import (  # noqa: E402
     MeasurementSensor,
     async_setup_entry,
 )
+from custom_components.wiener_luft.station import Station  # noqa: E402
 
 
 def _station(*, station_url: str | None = None) -> Station:

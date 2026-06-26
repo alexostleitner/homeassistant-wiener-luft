@@ -13,12 +13,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .client import (
-    LumesMeasurements,
-    Station,
-    parse_lumes_csv,
-    parse_station_geojson,
-)
 from .const import (
     HTTP_TIMEOUT_SECONDS,
     MEASUREMENT_UPDATE_INTERVAL,
@@ -27,6 +21,9 @@ from .const import (
     STATION_UPDATE_INTERVAL,
     STATIONS_URL,
 )
+from .measurements_parser import LumesMeasurements, parse_lumes_csv
+from .station import Station
+from .stations_parser import parse_station_geojson
 
 LOGGER = logging.getLogger(__name__)
 

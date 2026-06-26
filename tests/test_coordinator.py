@@ -16,11 +16,11 @@ install_homeassistant_stubs()
 from custom_components.wiener_luft import (  # noqa: E402
     coordinator as coordinator_module,
 )
-from custom_components.wiener_luft.client import Station  # noqa: E402
 from custom_components.wiener_luft.coordinator import (  # noqa: E402
     IntegrationCoordinator,
     IntegrationData,
 )
+from custom_components.wiener_luft.station import Station  # noqa: E402
 
 FIXTURE_DIR = Path(__file__).with_name("fixtures")
 LUMES_FIXTURE = FIXTURE_DIR / "lumes_sanitized.csv"
