@@ -15,12 +15,25 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import slugify
 
 from .client import SelectedMetric, Station
 from .const import DOMAIN
 from .coordinator import IntegrationCoordinator
+from .entity_ids import sensor_entity_id, sensor_unique_id
 from .measurements import MEASUREMENT_SPECS, MeasurementSpec
+
+
+def _device_info_for_station(station: Station) -> DeviceInfo:
+    """Return the device registry payload for one station."""
+
+    device_info: DeviceInfo = {
+        "identifiers": {(DOMAIN, station.code)},
+        "name": station.name,
+        "manufacturer": "Wiener Luft",
+    }
+    if station.station_url:
+        device_info["configuration_url"] = station.station_url
+    return device_info
 
 
 async def async_setup_entry(
@@ -101,8 +114,6 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         self._station = station
         self._component = component
         self._measurement_spec = measurement_spec
-        component_slug = component.lower().replace(".", "")
-        station_slug = slugify(station.name or station.code)
 
         self._attr_translation_key = measurement_spec.translation_key
         self._attr_device_class = (
@@ -114,17 +125,9 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             SensorStateClass, measurement_spec.state_class
         )
         self._attr_icon = measurement_spec.icon
-        self._attr_unique_id = f"{DOMAIN}_{station.code.lower()}_{component_slug}"
-        device_info: DeviceInfo = {
-            "identifiers": {(DOMAIN, self._station_code)},
-            "name": station.name,
-            "manufacturer": "Wiener Luft",
-        }
-        if station.station_url:
-            device_info["configuration_url"] = station.station_url
-        self._attr_device_info = device_info
-        entity_id_slug = measurement_spec.entity_id_slug or component_slug
-        self.entity_id = f"sensor.{DOMAIN}_{entity_id_slug}_{station_slug}"
+        self._attr_unique_id = sensor_unique_id(measurement_spec, station.code)
+        self._attr_device_info = _device_info_for_station(station)
+        self.entity_id = sensor_entity_id(measurement_spec, station.code)
 
     @property
     def available(self) -> bool:

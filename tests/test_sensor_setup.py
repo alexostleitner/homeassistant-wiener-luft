@@ -71,8 +71,17 @@ def _coordinator(
     return coordinator
 
 
+def _expected_entity_base(component: str, station_code: str = "STA1") -> str:
+    measurement_spec = MEASUREMENT_SPECS[component]
+    return f"wiener_luft_{measurement_spec.entity_id_slug}_{station_code.lower()}"
+
+
 def _expected_unique_id(component: str) -> str:
-    return f"wiener_luft_sta1_{component.lower()}"
+    return _expected_entity_base(component)
+
+
+def _expected_entity_id(component: str) -> str:
+    return f"sensor.{_expected_entity_base(component)}"
 
 
 class MeasurementSensorTest(unittest.TestCase):
@@ -88,10 +97,11 @@ class MeasurementSensorTest(unittest.TestCase):
             "WR",
             MEASUREMENT_SPECS["WR"],
         )
-        self.assertEqual(
-            "sensor.wiener_luft_wind_direction_station_1", sensor.entity_id
-        )
+        self.assertEqual(_expected_entity_id("WR"), sensor.entity_id)
         self.assertEqual(_expected_unique_id("WR"), sensor._attr_unique_id)
+        self.assertEqual(
+            sensor._attr_unique_id, sensor.entity_id.removeprefix("sensor.")
+        )
         self.assertEqual(
             MEASUREMENT_SPECS["WR"].translation_key, sensor._attr_translation_key
         )
@@ -125,7 +135,7 @@ class MeasurementSensorTest(unittest.TestCase):
             MEASUREMENT_SPECS["PM25"],
         )
         sensor.coordinator.data = None
-        self.assertEqual("sensor.wiener_luft_pm25_station_1", sensor.entity_id)
+        self.assertEqual(_expected_entity_id("PM25"), sensor.entity_id)
         self.assertEqual(
             MEASUREMENT_SPECS["PM25"].translation_key,
             sensor._attr_translation_key,
@@ -150,16 +160,16 @@ class MeasurementSensorTest(unittest.TestCase):
             sensor._attr_device_info,
         )
 
-    def test_entity_id_uses_english_weather_slugs_only(self) -> None:
+    def test_entity_identifiers_share_slug_logic(self) -> None:
         station = _station()
         coordinator = _coordinator({})
 
         cases = {
-            "LTM": "sensor.wiener_luft_temperature_station_1",
-            "RF": "sensor.wiener_luft_humidity_station_1",
-            "WG": "sensor.wiener_luft_wind_speed_station_1",
-            "WR": "sensor.wiener_luft_wind_direction_station_1",
-            "PM25": "sensor.wiener_luft_pm25_station_1",
+            "LTM": "sensor.wiener_luft_temperature_sta1",
+            "RF": "sensor.wiener_luft_humidity_sta1",
+            "WG": "sensor.wiener_luft_wind_speed_sta1",
+            "WR": "sensor.wiener_luft_wind_direction_sta1",
+            "PM25": "sensor.wiener_luft_pm25_sta1",
         }
 
         for component, expected_entity_id in cases.items():
@@ -172,6 +182,9 @@ class MeasurementSensorTest(unittest.TestCase):
                 )
                 self.assertEqual(expected_entity_id, sensor.entity_id)
                 self.assertEqual(_expected_unique_id(component), sensor._attr_unique_id)
+                self.assertEqual(
+                    sensor._attr_unique_id, sensor.entity_id.removeprefix("sensor.")
+                )
                 self.assertEqual(
                     MEASUREMENT_SPECS[component].translation_key,
                     sensor._attr_translation_key,

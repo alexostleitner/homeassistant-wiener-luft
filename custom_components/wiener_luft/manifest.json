@@ -5,7 +5,7 @@
   "documentation": "https://github.com/alexostleitner/homeassistant-wiener-luft#readme",
   "integration_type": "hub",
   "issue_tracker": "https://github.com/alexostleitner/homeassistant-wiener-luft/issues",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "iot_class": "cloud_polling",
   "config_flow": true,
   "single_config_entry": true,

@@ -11,6 +11,7 @@ class IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle setup via the UI."""
 
     VERSION = 1
+    MINOR_VERSION = 2
 
     async def async_step_user(self, user_input: dict | None = None):
         """Handle a flow initiated from the UI."""
