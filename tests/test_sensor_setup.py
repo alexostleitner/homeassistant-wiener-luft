@@ -215,7 +215,7 @@ class SensorSetupTest(unittest.TestCase):
         )
         self.assertEqual(
             ["PM25", "O3", "NOX", "WR"],
-            [entity.component for entity in batches[0]],
+            [entity._component for entity in batches[0]],
         )
 
         coordinator.data = IntegrationData(
@@ -231,4 +231,25 @@ class SensorSetupTest(unittest.TestCase):
         coordinator.async_update_listeners()
 
         self.assertEqual(2, len(batches))
-        self.assertEqual(["NO2"], [entity.component for entity in batches[1]])
+        self.assertEqual(["NO2"], [entity._component for entity in batches[1]])
+
+    def test_setup_skips_unknown_measurements(self) -> None:
+        coordinator = _coordinator(
+            {
+                ("STA1", "PM25"): _metric("PM25", 12.3, "1MW"),
+                ("STA1", "ZZ"): _metric("ZZ", 5.0, "1MW"),
+            }
+        )
+        batches: list[list[object]] = []
+        asyncio.run(
+            async_setup_entry(
+                types.SimpleNamespace(),
+                types.SimpleNamespace(
+                    runtime_data=coordinator,
+                    async_on_unload=lambda func: func,
+                ),
+                lambda entities: batches.append(list(entities)),
+            )
+        )
+        self.assertEqual(1, len(batches))
+        self.assertEqual(["PM25"], [entity._component for entity in batches[0]])

@@ -15,7 +15,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
 from homeassistant.util import slugify
 
 from .client import SelectedMetric, Station
@@ -24,15 +23,11 @@ from .coordinator import IntegrationCoordinator
 from .measurements import MEASUREMENT_SPECS, MeasurementSpec
 
 
-def sensor_id_base(measurement_spec: MeasurementSpec, station_code: str) -> str:
-    """Return the full sensor slug used for unique_id and entity_id."""
-
+def _sensor_id_base(measurement_spec: MeasurementSpec, station_code: str) -> str:
     return f"{DOMAIN}_{measurement_spec.measurement_slug}_{slugify(station_code)}"
 
 
 def _device_info_for_station(station: Station) -> DeviceInfo:
-    """Return the device registry payload for one station."""
-
     device_info: DeviceInfo = {
         "identifiers": {(DOMAIN, station.code)},
         "name": station.name,
@@ -43,6 +38,43 @@ def _device_info_for_station(station: Station) -> DeviceInfo:
     return device_info
 
 
+def _build_entities(
+    coordinator: IntegrationCoordinator,
+    known_entity_keys: set[tuple[str, str]] | None = None,
+) -> list[MeasurementSensor]:
+    entities: list[MeasurementSensor] = []
+    if coordinator.data is None:
+        return entities
+
+    for (station_code, component), reading in (
+        coordinator.data.measurements.selected.items()
+    ):
+        station = coordinator.data.stations.get(station_code)
+        entity_key = (station_code, component)
+        if (
+            station is None
+            or reading.value is None
+            or reading.measurement_type is None
+        ):
+            continue
+        if known_entity_keys is not None and entity_key in known_entity_keys:
+            continue
+
+        spec = MEASUREMENT_SPECS.get(component)
+        if spec is None:
+            continue
+
+        entities.append(
+            MeasurementSensor(
+                coordinator,
+                station,
+                component,
+                spec,
+            )
+        )
+    return entities
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -51,51 +83,19 @@ async def async_setup_entry(
     """Set up sensors from a config entry."""
 
     coordinator = entry.runtime_data
-
-    def build_entities(
-        known_entity_keys: set[tuple[str, str]] | None = None,
-    ) -> list[MeasurementSensor]:
-        entities: list[MeasurementSensor] = []
-        if coordinator.data is None:
-            return entities
-
-        for (station_code, component), reading in (
-            coordinator.data.measurements.selected.items()
-        ):
-            station = coordinator.data.stations.get(station_code)
-            entity_key = (station_code, component)
-            if (
-                station is None
-                or reading.value is None
-                or reading.measurement_type is None
-            ):
-                continue
-            if known_entity_keys is not None and entity_key in known_entity_keys:
-                continue
-
-            entities.append(
-                MeasurementSensor(
-                    coordinator,
-                    station,
-                    component,
-                    MEASUREMENT_SPECS[component],
-                )
-            )
-        return entities
-
-    entities = build_entities()
-    known_entity_keys = {(entity.station_code, entity.component) for entity in entities}
+    entities = _build_entities(coordinator)
+    known_entity_keys = {
+        (entity._station_code, entity._component) for entity in entities
+    }
     async_add_entities(entities)
 
     def async_add_new_entities() -> None:
-        """Add sensors for newly available station/measurement pairs."""
-
-        new_entities = build_entities(known_entity_keys)
+        new_entities = _build_entities(coordinator, known_entity_keys)
         if not new_entities:
             return
 
         known_entity_keys.update(
-            {(entity.station_code, entity.component) for entity in new_entities}
+            {(entity._station_code, entity._component) for entity in new_entities}
         )
         async_add_entities(new_entities)
 
@@ -132,15 +132,13 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             SensorStateClass, measurement_spec.state_class
         )
         self._attr_icon = measurement_spec.icon
-        sensor_id_base_value = sensor_id_base(measurement_spec, station.code)
+        sensor_id_base_value = _sensor_id_base(measurement_spec, station.code)
         self._attr_unique_id = sensor_id_base_value
         self._attr_device_info = _device_info_for_station(station)
         self.entity_id = f"sensor.{sensor_id_base_value}"
 
     @property
     def available(self) -> bool:
-        """Return whether the selected reading is currently available."""
-
         reading = self._reading
         return (
             self.coordinator.last_update_success
@@ -150,22 +148,16 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        """Return the current selected measurement value."""
-
         reading = self._reading
         return reading.value if reading is not None else None
 
     @property
     def native_unit_of_measurement(self) -> str:
-        """Return the unit reported by the source CSV."""
-
         reading = self._reading
         return reading.unit if reading is not None else self._measurement_spec.unit
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return stable sensor attributes."""
-
         station = self._current_station
         return {
             "district": station.district,
@@ -186,15 +178,3 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         if self.coordinator.data is None:
             return self._station
         return self.coordinator.data.stations.get(self._station_code, self._station)
-
-    @property
-    def station_code(self) -> str:
-        """Return the station code for setup-time entity tracking."""
-
-        return self._station_code
-
-    @property
-    def component(self) -> str:
-        """Return the measurement component for setup-time entity tracking."""
-
-        return self._component
