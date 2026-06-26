@@ -25,7 +25,7 @@ class LumesCsvParsingTest(unittest.TestCase):
         self.assertEqual("abc\u2013def", decode_payload(b"abc\x96def"))
         parsed = parse_lumes_csv(LUMES_FIXTURE.read_bytes())
 
-        self.assertEqual(("STA1", "STA2", "STA3"), parsed.station_codes)
+        self.assertEqual({"STA1", "STA2", "STA3"}, {key[0] for key in parsed.selected})
         self.assertEqual(33, len(parsed.selected))
 
         expected = {

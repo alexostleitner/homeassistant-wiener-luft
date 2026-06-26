@@ -33,24 +33,15 @@ class Station:
 class SelectedMetric:
     """Selected measurement value."""
 
-    station_code: str
-    component: str
     value: float | None
     unit: str
     measurement_type: str | None
-
-    @property
-    def available(self) -> bool:
-        """Return true when the priority rules found a valid measurement."""
-
-        return self.value is not None and self.measurement_type is not None
 
 
 @dataclass(frozen=True, slots=True)
 class LumesMeasurements:
     """Parsed measurement data."""
 
-    station_codes: tuple[str, ...]
     selected: dict[tuple[str, str], SelectedMetric]
 
 
@@ -97,14 +88,12 @@ def parse_lumes_csv(payload: str | bytes) -> LumesMeasurements:
     component_row, averaging_row, unit_row = _parse_lumes_header(rows)
     columns_by_component = _collect_columns(component_row, averaging_row, unit_row)
     width = len(component_row)
-    station_codes: list[str] = []
     selected: dict[tuple[str, str], SelectedMetric] = {}
 
     for row_number, row in enumerate(rows[4:], start=5):
-        station_code = _station_code_from_row(row)
-        if station_code is None:
+        if not row or not row[0].strip():
             continue
-        station_codes.append(station_code)
+        station_code = row[0].strip().upper()
 
         _select_row_measurements(
             selected,
@@ -122,10 +111,7 @@ def parse_lumes_csv(payload: str | bytes) -> LumesMeasurements:
                 width,
             )
 
-    return LumesMeasurements(
-        station_codes=tuple(station_codes),
-        selected=selected,
-    )
+    return LumesMeasurements(selected=selected)
 
 
 def parse_station_geojson(payload: str | bytes | dict[str, Any]) -> dict[str, Station]:
@@ -248,12 +234,6 @@ def _collect_columns(
     return columns_by_component
 
 
-def _station_code_from_row(row: list[str]) -> str | None:
-    if not row or not row[0].strip():
-        return None
-    return row[0].strip().upper()
-
-
 def _select_row_measurements(
     selected: dict[tuple[str, str], SelectedMetric],
     station_code: str,
@@ -265,8 +245,6 @@ def _select_row_measurements(
         unit = component_columns[0][2] or MEASUREMENT_SPECS[component].unit
         if chosen_column is None:
             selected[(station_code, component)] = SelectedMetric(
-                station_code=station_code,
-                component=component,
                 value=None,
                 unit=unit,
                 measurement_type=None,
@@ -275,8 +253,6 @@ def _select_row_measurements(
 
         index, averaging_type, chosen_unit = chosen_column
         selected[(station_code, component)] = SelectedMetric(
-            station_code=station_code,
-            component=component,
             value=parse_number(row[index] if index < len(row) else None),
             unit=chosen_unit or unit,
             measurement_type=averaging_type,

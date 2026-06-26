@@ -44,7 +44,11 @@ async def async_setup_entry(
         ):
             station = coordinator.data.stations.get(station_code)
             entity_key = (station_code, component)
-            if station is None or not reading.available:
+            if (
+                station is None
+                or reading.value is None
+                or reading.measurement_type is None
+            ):
                 continue
             if known_entity_keys is not None and entity_key in known_entity_keys:
                 continue

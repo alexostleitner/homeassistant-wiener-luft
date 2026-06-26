@@ -38,7 +38,7 @@ def _metric(
     *,
     unit: str = "µg/m³",
 ) -> SelectedMetric:
-    return SelectedMetric("STA1", component, value, unit, measurement_type)
+    return SelectedMetric(value, unit, measurement_type)
 
 
 def _coordinator(
@@ -51,7 +51,6 @@ def _coordinator(
         data=IntegrationData(
             stations={station.code: station},
             measurements=LumesMeasurements(
-                station_codes=(station.code,),
                 selected=selected,
             ),
         ),
@@ -209,7 +208,6 @@ class SensorSetupTest(unittest.TestCase):
         coordinator.data = IntegrationData(
             stations={"STA1": _station()},
             measurements=LumesMeasurements(
-                station_codes=("STA1",),
                 selected={
                     ("STA1", "PM25"): _metric("PM25", 12.3, "1MW"),
                     ("STA1", "NO2"): _metric("NO2", 8.0, "HMW"),

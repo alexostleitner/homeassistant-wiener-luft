@@ -3,15 +3,29 @@
 from __future__ import annotations
 
 import sys
-import types
+from types import ModuleType
 
 
 def _coordinator_entity_init(self, coordinator) -> None:
     self.coordinator = coordinator
 
 
+def _return_cls(cls, _item):
+    return cls
+
+
+def _constants(name: str, **attrs):
+    attrs["__class_getitem__"] = classmethod(_return_cls)
+    return type(name, (), attrs)
+
+
+class _ConfigFlow:
+    def __init_subclass__(cls, **_kwargs) -> None:
+        super().__init_subclass__()
+
+
 def install_homeassistant_stubs() -> None:
-    names = (
+    module_names = (
         "homeassistant",
         "homeassistant.components",
         "homeassistant.components.sensor",
@@ -25,86 +39,63 @@ def install_homeassistant_stubs() -> None:
         "homeassistant.util",
         "homeassistant.util.dt",
     )
-    modules = {
-        name: sys.modules.setdefault(name, types.ModuleType(name))
-        for name in names
-    }
-    homeassistant = modules["homeassistant"]
-    components = modules["homeassistant.components"]
-    sensor = modules["homeassistant.components.sensor"]
-    config_entries = modules["homeassistant.config_entries"]
+    modules = {}
+    for name in module_names:
+        modules[name] = sys.modules.setdefault(name, ModuleType(name))
+        if "." in name:
+            parent, attr = name.rsplit(".", 1)
+            setattr(modules[parent], attr, modules[name])
+
+    for name in ("homeassistant", "homeassistant.components", "homeassistant.helpers"):
+        modules[name].__path__ = []  # type: ignore[attr-defined]
+
     const = modules["homeassistant.const"]
-    core = modules["homeassistant.core"]
-    helpers = modules["homeassistant.helpers"]
-    device_registry = modules["homeassistant.helpers.device_registry"]
-    entity_platform = modules["homeassistant.helpers.entity_platform"]
-    update_coordinator = modules["homeassistant.helpers.update_coordinator"]
-    util = modules["homeassistant.util"]
-    util_dt = modules["homeassistant.util.dt"]
-
-    for module, attr, child in (
-        (homeassistant, "components", components),
-        (homeassistant, "config_entries", config_entries),
-        (homeassistant, "const", const),
-        (homeassistant, "core", core),
-        (homeassistant, "helpers", helpers),
-        (homeassistant, "util", util),
-        (components, "sensor", sensor),
-        (helpers, "device_registry", device_registry),
-        (helpers, "entity_platform", entity_platform),
-        (helpers, "update_coordinator", update_coordinator),
-        (util, "dt", util_dt),
-    ):
-        setattr(module, attr, child)
-
-    for module in (homeassistant, components, helpers):
-        module.__path__ = []  # type: ignore[attr-defined]
-
     const.ATTR_LATITUDE = "latitude"
     const.ATTR_LONGITUDE = "longitude"
     const.Platform = type("Platform", (), {"SENSOR": "sensor"})
+
+    sensor = modules["homeassistant.components.sensor"]
     sensor.SensorEntity = type("SensorEntity", (), {})
-    sensor.SensorDeviceClass = type(
+    sensor.SensorDeviceClass = _constants(
         "SensorDeviceClass",
-        (),
-        {
-            "PM25": "pm25",
-            "PM10": "pm10",
-            "NITROGEN_DIOXIDE": "nitrogen_dioxide",
-            "OZONE": "ozone",
-            "SULPHUR_DIOXIDE": "sulphur_dioxide",
-            "CO": "carbon_monoxide",
-            "TEMPERATURE": "temperature",
-            "HUMIDITY": "humidity",
-            "WIND_SPEED": "wind_speed",
-            "WIND_DIRECTION": "wind_direction",
-            "__class_getitem__": classmethod(lambda cls, item: cls),
-        },
+        PM25="pm25",
+        PM10="pm10",
+        NITROGEN_DIOXIDE="nitrogen_dioxide",
+        OZONE="ozone",
+        SULPHUR_DIOXIDE="sulphur_dioxide",
+        CO="carbon_monoxide",
+        TEMPERATURE="temperature",
+        HUMIDITY="humidity",
+        WIND_SPEED="wind_speed",
+        WIND_DIRECTION="wind_direction",
     )
-    sensor.SensorStateClass = type(
+    sensor.SensorStateClass = _constants(
         "SensorStateClass",
-        (),
-        {
-            "MEASUREMENT": "measurement",
-            "MEASUREMENT_ANGLE": "measurement_angle",
-            "__class_getitem__": classmethod(lambda cls, item: cls),
-        },
+        MEASUREMENT="measurement",
+        MEASUREMENT_ANGLE="measurement_angle",
     )
-    config_entries.ConfigFlow = type("ConfigFlow", (), {})
-    config_entries.ConfigEntry = type("ConfigEntry", (), {})
-    core.HomeAssistant = type("HomeAssistant", (), {})
-    device_registry.DeviceInfo = type("DeviceInfo", (dict,), {})
-    entity_platform.AddEntitiesCallback = type("AddEntitiesCallback", (), {})
-    update_coordinator.CoordinatorEntity = type(
+
+    modules["homeassistant.config_entries"].ConfigFlow = _ConfigFlow
+    modules["homeassistant.config_entries"].ConfigEntry = type("ConfigEntry", (), {})
+    modules["homeassistant.core"].HomeAssistant = type("HomeAssistant", (), {})
+    modules["homeassistant.helpers.device_registry"].DeviceInfo = type(
+        "DeviceInfo", (dict,), {}
+    )
+    modules["homeassistant.helpers.entity_platform"].AddEntitiesCallback = type(
+        "AddEntitiesCallback", (), {}
+    )
+    modules["homeassistant.helpers.update_coordinator"].CoordinatorEntity = type(
         "CoordinatorEntity",
         (),
         {"__init__": _coordinator_entity_init},
     )
-    update_coordinator.DataUpdateCoordinator = type(
-        "DataUpdateCoordinator",
-        (),
-        {"__class_getitem__": classmethod(lambda cls, item: cls)},
+    modules["homeassistant.helpers.update_coordinator"].DataUpdateCoordinator = (
+        _constants("DataUpdateCoordinator")
     )
-    update_coordinator.UpdateFailed = type("UpdateFailed", (Exception,), {})
-    util_dt.utcnow = lambda: None
-    util.slugify = lambda value: value.lower().replace(" ", "_")
+    modules["homeassistant.helpers.update_coordinator"].UpdateFailed = type(
+        "UpdateFailed", (Exception,), {}
+    )
+    modules["homeassistant.util.dt"].utcnow = lambda: None
+    modules["homeassistant.util"].slugify = (
+        lambda value: value.lower().replace(" ", "_")
+    )

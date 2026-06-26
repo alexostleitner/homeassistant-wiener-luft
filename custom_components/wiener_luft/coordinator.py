@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from urllib.request import urlopen
 
 from homeassistant.config_entries import ConfigEntry
@@ -28,13 +29,6 @@ from .const import (
 )
 
 LOGGER = logging.getLogger(__name__)
-
-
-def fetch_bytes(url: str, timeout: float = HTTP_TIMEOUT_SECONDS) -> bytes:
-    """Fetch URL bytes using only the standard library."""
-
-    with urlopen(url, timeout=timeout) as response:
-        return response.read()
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +75,10 @@ class IntegrationCoordinator(
 
         self._stations_last_refresh_attempt = now
         try:
-            payload = await self.hass.async_add_executor_job(fetch_bytes, STATIONS_URL)
+            with await self.hass.async_add_executor_job(
+                partial(urlopen, STATIONS_URL, timeout=HTTP_TIMEOUT_SECONDS)
+            ) as response:
+                payload = await self.hass.async_add_executor_job(response.read)
             self.stations = parse_station_geojson(payload)
         except Exception as err:
             if not self.stations:
@@ -96,9 +93,10 @@ class IntegrationCoordinator(
         station_refresh_succeeded = await self.async_refresh_stations()
 
         try:
-            payload = await self.hass.async_add_executor_job(
-                fetch_bytes, MEASUREMENTS_URL
-            )
+            with await self.hass.async_add_executor_job(
+                partial(urlopen, MEASUREMENTS_URL, timeout=HTTP_TIMEOUT_SECONDS)
+            ) as response:
+                payload = await self.hass.async_add_executor_job(response.read)
             measurements = parse_lumes_csv(payload)
         except Exception as err:
             raise UpdateFailed(
@@ -116,7 +114,9 @@ class IntegrationCoordinator(
     def _log_unknown_station_codes(self, measurements: LumesMeasurements) -> None:
         """Log stations present in measurements but missing from station metadata."""
 
-        for station_code in measurements.station_codes:
+        for station_code in dict.fromkeys(
+            station_code for station_code, _component in measurements.selected
+        ):
             if station_code in self.stations:
                 continue
             LOGGER.warning(
