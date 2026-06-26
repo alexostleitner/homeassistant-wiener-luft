@@ -1,0 +1,13 @@
+{
+  "domain": "wiener_luft",
+  "name": "Wiener Luft",
+  "codeowners": ["@alexostleitner"],
+  "documentation": "https://github.com/alexostleitner/homeassistant-wiener-luft#readme",
+  "integration_type": "hub",
+  "issue_tracker": "https://github.com/alexostleitner/homeassistant-wiener-luft/issues",
+  "version": "0.4.0",
+  "iot_class": "cloud_polling",
+  "config_flow": true,
+  "single_config_entry": true,
+  "requirements": []
+}

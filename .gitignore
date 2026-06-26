@@ -1,0 +1,37 @@
+# macOS
+**/.DS_Store
+
+# Python bytecode and caches
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging and build outputs
+build/
+dist/
+*.egg-info/
+htmlcov/
+.coverage
+.coverage.*
+
+# Editor / local noise
+.idea/
+.vscode/
+.python-version
+.env
+.env.*
+
+# Local-only working data
+samples/

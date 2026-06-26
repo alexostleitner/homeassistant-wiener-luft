@@ -1,0 +1,126 @@
+"""Data fetch coordinator and refresh logic."""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from datetime import datetime
+from urllib.request import urlopen
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
+
+from .client import (
+    LumesMeasurements,
+    Station,
+    parse_lumes_csv,
+    parse_station_geojson,
+)
+from .const import (
+    HTTP_TIMEOUT_SECONDS,
+    MEASUREMENT_UPDATE_INTERVAL,
+    MEASUREMENTS_URL,
+    NAME,
+    STATION_UPDATE_INTERVAL,
+    STATIONS_URL,
+)
+
+LOGGER = logging.getLogger(__name__)
+
+
+def fetch_bytes(url: str, timeout: float = HTTP_TIMEOUT_SECONDS) -> bytes:
+    """Fetch URL bytes using only the standard library."""
+
+    with urlopen(url, timeout=timeout) as response:
+        return response.read()
+
+
+@dataclass(frozen=True, slots=True)
+class IntegrationData:
+    """Normalized data exposed to entities."""
+
+    stations: dict[str, Station]
+    measurements: LumesMeasurements
+
+
+class IntegrationCoordinator(
+    DataUpdateCoordinator[IntegrationData]
+):
+    """Coordinate data refreshes."""
+
+    def __init__(
+        self, hass: HomeAssistant, config_entry: ConfigEntry | None = None
+    ) -> None:
+        super().__init__(
+            hass,
+            LOGGER,
+            name=NAME,
+            update_interval=MEASUREMENT_UPDATE_INTERVAL,
+            config_entry=config_entry,
+        )
+        self.stations: dict[str, Station] = {}
+        self._stations_last_refresh_attempt: datetime | None = None
+
+    async def _async_setup(self) -> None:
+        """Load station metadata before the first measurement update."""
+
+        await self.async_refresh_stations(force=True)
+
+    async def async_refresh_stations(self, force: bool = False) -> bool:
+        """Refresh station metadata at most once per day."""
+
+        now = dt_util.utcnow()
+        if (
+            not force
+            and self._stations_last_refresh_attempt is not None
+            and now - self._stations_last_refresh_attempt < STATION_UPDATE_INTERVAL
+        ):
+            return False
+
+        self._stations_last_refresh_attempt = now
+        try:
+            payload = await self.hass.async_add_executor_job(fetch_bytes, STATIONS_URL)
+            self.stations = parse_station_geojson(payload)
+        except Exception as err:
+            if not self.stations:
+                raise UpdateFailed("Could not load station metadata") from err
+            LOGGER.warning("Could not refresh station metadata; keeping cached data")
+            return False
+        return True
+
+    async def _async_update_data(self) -> IntegrationData:
+        """Fetch current measurements and combine them with cached stations."""
+
+        station_refresh_succeeded = await self.async_refresh_stations()
+
+        try:
+            payload = await self.hass.async_add_executor_job(
+                fetch_bytes, MEASUREMENTS_URL
+            )
+            measurements = parse_lumes_csv(payload)
+        except Exception as err:
+            raise UpdateFailed(
+                "Could not update Wiener Luftmessnetz measurements"
+            ) from err
+
+        if station_refresh_succeeded:
+            self._log_unknown_station_codes(measurements)
+
+        return IntegrationData(
+            stations=self.stations,
+            measurements=measurements,
+        )
+
+    def _log_unknown_station_codes(self, measurements: LumesMeasurements) -> None:
+        """Log stations present in measurements but missing from station metadata."""
+
+        for station_code in measurements.station_codes:
+            if station_code in self.stations:
+                continue
+            LOGGER.warning(
+                "Wiener Luftmessnetz CSV contains unknown station code %s that is not "
+                "present in station metadata",
+                station_code,
+            )
