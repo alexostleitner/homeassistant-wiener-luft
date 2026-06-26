@@ -10,7 +10,9 @@ The integration uses the City of Vienna open data datasets [Luftmessnetz: aktuel
 
 Available measurements include particulate matter (PM10, PM2.5), nitrogen dioxide (NO₂), nitrogen oxides (NOₓ), ozone (O₃), sulphur dioxide (SO₂), carbon monoxide (CO), air temperature, relative humidity, wind speed, and wind direction.
 
-In Home Assistant, the integration creates sensors for each available monitoring station and measurement. These sensors update every 30 minutes and can be used like other Home Assistant sensors.
+In Home Assistant, the integration creates sensors for each available monitoring station and measurement. These sensors update every 30 minutes and can be used like other Home Assistant sensors. 
+
+Sensor names are localized in Home Assistant and currently available in English and German.
 
 ### Sensor behavior
 

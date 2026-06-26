@@ -9,7 +9,7 @@ from dataclasses import dataclass
 class MeasurementSpec:
     """Metadata for one measurement."""
 
-    name: str
+    translation_key: str
     unit: str
     device_class: str | None = None
     state_class: str = "MEASUREMENT"
@@ -18,60 +18,60 @@ class MeasurementSpec:
 
 MEASUREMENT_SPECS: dict[str, MeasurementSpec] = {
     "PM25": MeasurementSpec(
-        name="PM2.5",
+        translation_key="pm25",
         unit="µg/m³",
         device_class="PM25",
     ),
     "PM10": MeasurementSpec(
-        name="PM10",
+        translation_key="pm10",
         unit="µg/m³",
         device_class="PM10",
     ),
     "NO2": MeasurementSpec(
-        name="NO2",
+        translation_key="no2",
         unit="µg/m³",
         device_class="NITROGEN_DIOXIDE",
     ),
     "O3": MeasurementSpec(
-        name="O3",
+        translation_key="o3",
         unit="µg/m³",
         device_class="OZONE",
     ),
     "NOX": MeasurementSpec(
-        name="NOX",
+        translation_key="nox",
         unit="µg/m³",
         icon="mdi:molecule",
     ),
     "SO2": MeasurementSpec(
-        name="SO2",
+        translation_key="so2",
         unit="µg/m³",
         device_class="SULPHUR_DIOXIDE",
     ),
     "CO": MeasurementSpec(
-        name="CO",
+        translation_key="co",
         unit="mg/m³",
         device_class="CO",
     ),
     "LTM": MeasurementSpec(
-        name="Air temperature",
+        translation_key="temperature",
         unit="°C",
         device_class="TEMPERATURE",
         entity_id_slug="temperature",
     ),
     "RF": MeasurementSpec(
-        name="Relative humidity",
+        translation_key="humidity",
         unit="%",
         device_class="HUMIDITY",
         entity_id_slug="humidity",
     ),
     "WG": MeasurementSpec(
-        name="Wind speed",
+        translation_key="wind_speed",
         unit="km/h",
         device_class="WIND_SPEED",
         entity_id_slug="wind_speed",
     ),
     "WR": MeasurementSpec(
-        name="Wind direction",
+        translation_key="wind_direction",
         unit="°",
         device_class="WIND_DIRECTION",
         state_class="MEASUREMENT_ANGLE",

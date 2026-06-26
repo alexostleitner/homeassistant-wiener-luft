@@ -1,0 +1,39 @@
+{
+  "entity": {
+    "sensor": {
+      "pm25": {
+        "name": "PM2.5"
+      },
+      "pm10": {
+        "name": "PM10"
+      },
+      "no2": {
+        "name": "Nitrogen dioxide"
+      },
+      "o3": {
+        "name": "Ozone"
+      },
+      "nox": {
+        "name": "Nitrogen oxides"
+      },
+      "so2": {
+        "name": "Sulfur dioxide"
+      },
+      "co": {
+        "name": "Carbon monoxide"
+      },
+      "temperature": {
+        "name": "Air temperature"
+      },
+      "humidity": {
+        "name": "Relative humidity"
+      },
+      "wind_speed": {
+        "name": "Wind speed"
+      },
+      "wind_direction": {
+        "name": "Wind direction"
+      }
+    }
+  }
+}

@@ -93,6 +93,9 @@ class MeasurementSensorTest(unittest.TestCase):
             "sensor.wiener_luft_wind_direction_station_1", sensor.entity_id
         )
         self.assertEqual(_expected_unique_id("WR"), sensor._attr_unique_id)
+        self.assertEqual(
+            MEASUREMENT_SPECS["WR"].translation_key, sensor._attr_translation_key
+        )
         self.assertTrue(sensor.available)
         self.assertEqual(180.0, sensor.native_value)
         self.assertEqual("°", sensor.native_unit_of_measurement)
@@ -120,6 +123,10 @@ class MeasurementSensorTest(unittest.TestCase):
         )
         sensor.coordinator.data = None
         self.assertEqual("sensor.wiener_luft_pm25_station_1", sensor.entity_id)
+        self.assertEqual(
+            MEASUREMENT_SPECS["PM25"].translation_key,
+            sensor._attr_translation_key,
+        )
         self.assertFalse(sensor.available)
         self.assertIsNone(sensor.native_value)
         self.assertEqual("µg/m³", sensor.native_unit_of_measurement)
@@ -158,6 +165,10 @@ class MeasurementSensorTest(unittest.TestCase):
                 )
                 self.assertEqual(expected_entity_id, sensor.entity_id)
                 self.assertEqual(_expected_unique_id(component), sensor._attr_unique_id)
+                self.assertEqual(
+                    MEASUREMENT_SPECS[component].translation_key,
+                    sensor._attr_translation_key,
+                )
 
 
 class SensorSetupTest(unittest.TestCase):

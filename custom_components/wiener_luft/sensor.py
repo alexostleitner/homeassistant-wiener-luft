@@ -100,7 +100,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         component_slug = component.lower().replace(".", "")
         station_slug = slugify(station.name or station.code)
 
-        self._attr_name = measurement_spec.name
+        self._attr_translation_key = measurement_spec.translation_key
         self._attr_device_class = (
             getattr(SensorDeviceClass, measurement_spec.device_class)
             if measurement_spec.device_class is not None
