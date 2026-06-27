@@ -21,14 +21,7 @@ class SelectedMetric:
     measurement_type: str | None
 
 
-@dataclass(frozen=True, slots=True)
-class LumesMeasurements:
-    """Parsed measurement data."""
-
-    selected: dict[tuple[str, str], SelectedMetric]
-
-
-def parse_lumes_csv(payload: str | bytes) -> LumesMeasurements:
+def parse_lumes_csv(payload: str | bytes) -> dict[tuple[str, str], SelectedMetric]:
     """Parse the Lumes v2 CSV and select one reading per station/measurement."""
 
     text = decode_payload(payload)
@@ -60,7 +53,7 @@ def parse_lumes_csv(payload: str | bytes) -> LumesMeasurements:
                 width,
             )
 
-    return LumesMeasurements(selected=selected)
+    return selected
 
 
 def _choose_column(

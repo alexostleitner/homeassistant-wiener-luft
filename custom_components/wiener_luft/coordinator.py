@@ -21,7 +21,7 @@ from .const import (
     STATION_UPDATE_INTERVAL,
     STATIONS_URL,
 )
-from .measurements_parser import LumesMeasurements, parse_lumes_csv
+from .measurements_parser import SelectedMetric, parse_lumes_csv
 from .station import Station
 from .stations_parser import parse_station_geojson
 
@@ -33,7 +33,7 @@ class IntegrationData:
     """Normalized data exposed to entities."""
 
     stations: dict[str, Station]
-    measurements: LumesMeasurements
+    measurements: dict[tuple[str, str], SelectedMetric]
 
 
 class IntegrationCoordinator(
@@ -108,11 +108,13 @@ class IntegrationCoordinator(
             measurements=measurements,
         )
 
-    def _log_unknown_station_codes(self, measurements: LumesMeasurements) -> None:
+    def _log_unknown_station_codes(
+        self, measurements: dict[tuple[str, str], SelectedMetric]
+    ) -> None:
         """Log stations present in measurements but missing from station metadata."""
 
         for station_code in dict.fromkeys(
-            station_code for station_code, _component in measurements.selected
+            station_code for station_code, _component in measurements
         ):
             if station_code in self.stations:
                 continue

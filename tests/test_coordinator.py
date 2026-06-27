@@ -165,7 +165,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             "Wiener Luftmessnetz CSV contains unknown station code STA3",
             "\n".join(logs.output),
         )
-        self.assertIn("STA3", {key[0] for key in data.measurements.selected})
+        self.assertIn("STA3", {key[0] for key in data.measurements})
         self.assertEqual(2, urlopen_mock.call_count)
 
     async def test_update_data_raises_when_measurement_fetch_fails(self) -> None:

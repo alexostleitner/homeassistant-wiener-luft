@@ -17,7 +17,6 @@ from custom_components.wiener_luft.measurements import (  # noqa: E402
     MEASUREMENT_SPECS,
 )
 from custom_components.wiener_luft.measurements_parser import (  # noqa: E402
-    LumesMeasurements,
     SelectedMetric,
 )
 from custom_components.wiener_luft.sensor import (  # noqa: E402
@@ -50,9 +49,7 @@ def _coordinator(
     coordinator = types.SimpleNamespace(
         data=IntegrationData(
             stations={station.code: station},
-            measurements=LumesMeasurements(
-                selected=selected,
-            ),
+            measurements=selected,
         ),
         last_update_success=True,
         _listeners=[],
@@ -76,14 +73,6 @@ def _expected_entity_base(component: str, station_code: str = "STA1") -> str:
     return f"wiener_luft_{measurement_spec.measurement_slug}_{station_code.lower()}"
 
 
-def _expected_unique_id(component: str) -> str:
-    return _expected_entity_base(component)
-
-
-def _expected_entity_id(component: str) -> str:
-    return f"sensor.{_expected_entity_base(component)}"
-
-
 class MeasurementSensorTest(unittest.TestCase):
     def test_sensor_state(self) -> None:
         station = _station(station_url="https://example.test/stations/sta1")
@@ -97,8 +86,8 @@ class MeasurementSensorTest(unittest.TestCase):
             "WR",
             MEASUREMENT_SPECS["WR"],
         )
-        self.assertEqual(_expected_entity_id("WR"), sensor.entity_id)
-        self.assertEqual(_expected_unique_id("WR"), sensor._attr_unique_id)
+        self.assertEqual(f"sensor.{_expected_entity_base('WR')}", sensor.entity_id)
+        self.assertEqual(_expected_entity_base("WR"), sensor._attr_unique_id)
         self.assertEqual(
             sensor._attr_unique_id, sensor.entity_id.removeprefix("sensor.")
         )
@@ -135,7 +124,7 @@ class MeasurementSensorTest(unittest.TestCase):
             MEASUREMENT_SPECS["PM25"],
         )
         sensor.coordinator.data = None
-        self.assertEqual(_expected_entity_id("PM25"), sensor.entity_id)
+        self.assertEqual(f"sensor.{_expected_entity_base('PM25')}", sensor.entity_id)
         self.assertEqual(
             MEASUREMENT_SPECS["PM25"].translation_key,
             sensor._attr_translation_key,
@@ -181,7 +170,9 @@ class MeasurementSensorTest(unittest.TestCase):
                     MEASUREMENT_SPECS[component],
                 )
                 self.assertEqual(expected_entity_id, sensor.entity_id)
-                self.assertEqual(_expected_unique_id(component), sensor._attr_unique_id)
+                self.assertEqual(
+                    _expected_entity_base(component), sensor._attr_unique_id
+                )
                 self.assertEqual(
                     sensor._attr_unique_id, sensor.entity_id.removeprefix("sensor.")
                 )
@@ -220,12 +211,10 @@ class SensorSetupTest(unittest.TestCase):
 
         coordinator.data = IntegrationData(
             stations={"STA1": _station()},
-            measurements=LumesMeasurements(
-                selected={
-                    ("STA1", "PM25"): _metric("PM25", 12.3, "1MW"),
-                    ("STA1", "NO2"): _metric("NO2", 8.0, "HMW"),
-                },
-            ),
+            measurements={
+                ("STA1", "PM25"): _metric("PM25", 12.3, "1MW"),
+                ("STA1", "NO2"): _metric("NO2", 8.0, "HMW"),
+            },
         )
         coordinator.async_update_listeners()
         coordinator.async_update_listeners()

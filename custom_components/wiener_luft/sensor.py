@@ -35,7 +35,7 @@ def _build_entities(
         return entities
 
     for (station_code, component), reading in (
-        coordinator.data.measurements.selected.items()
+        coordinator.data.measurements.items()
     ):
         station = coordinator.data.stations.get(station_code)
         entity_key = (station_code, component)
@@ -154,7 +154,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
     def _reading(self) -> SelectedMetric | None:
         if self.coordinator.data is None:
             return None
-        return self.coordinator.data.measurements.selected.get(
+        return self.coordinator.data.measurements.get(
             (self._station_code, self._component)
         )
 
