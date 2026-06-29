@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import csv
 import logging
+import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone, tzinfo
 
-from .measurements import MEASUREMENT_PRIORITY, MEASUREMENT_SPECS
+from .measurements import (
+    MEASUREMENT_PRIORITY,
+    MEASUREMENT_SPECS,
+)
 from .parsing import MISSING_VALUES, decode_payload, parse_number
 
 LOGGER = logging.getLogger(__name__)
@@ -135,7 +139,12 @@ def _collect_columns(
             continue
 
         spec = MEASUREMENT_SPECS[component]
-        unit = unit_row[index].strip() or spec.unit
+        unit = (
+            unit_row[index]
+            .strip()
+            .replace("\u00b5", unicodedata.normalize("NFKC", "\u00b5"))
+            or spec.unit
+        )
         columns_by_component.setdefault(component, []).append(
             (index, averaging_type, unit, current_time_index, current_time_zone)
         )

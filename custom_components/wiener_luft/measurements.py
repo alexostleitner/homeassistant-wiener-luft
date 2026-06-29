@@ -18,7 +18,7 @@ class MeasurementSpec:
 
 
 DISPLAY_PRECISION_BY_UNIT: dict[str, int] = {
-    "µg/m³": 1,
+    "μg/m³": 1,
     "mg/m³": 2,
     "°C": 1,
     "%": 0,
@@ -30,37 +30,37 @@ MEASUREMENT_SPECS: dict[str, MeasurementSpec] = {
     "PM25": MeasurementSpec(
         translation_key="pm25",
         measurement_slug="pm25",
-        unit="µg/m³",
+        unit="μg/m³",
         device_class="PM25",
     ),
     "PM10": MeasurementSpec(
         translation_key="pm10",
         measurement_slug="pm10",
-        unit="µg/m³",
+        unit="μg/m³",
         device_class="PM10",
     ),
     "NO2": MeasurementSpec(
         translation_key="no2",
         measurement_slug="no2",
-        unit="µg/m³",
+        unit="μg/m³",
         device_class="NITROGEN_DIOXIDE",
     ),
     "O3": MeasurementSpec(
         translation_key="o3",
         measurement_slug="o3",
-        unit="µg/m³",
+        unit="μg/m³",
         device_class="OZONE",
     ),
     "NOX": MeasurementSpec(
         translation_key="nox",
         measurement_slug="nox",
-        unit="µg/m³",
+        unit="μg/m³",
         icon="mdi:molecule",
     ),
     "SO2": MeasurementSpec(
         translation_key="so2",
         measurement_slug="so2",
-        unit="µg/m³",
+        unit="μg/m³",
         device_class="SULPHUR_DIOXIDE",
     ),
     "CO": MeasurementSpec(

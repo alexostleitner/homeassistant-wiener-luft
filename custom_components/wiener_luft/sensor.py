@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import unicodedata
 from datetime import datetime
 from typing import Any
 
@@ -225,6 +226,10 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             return
 
         previous_unit = old_state.attributes.get("unit_of_measurement")
+        if previous_unit is not None:
+            previous_unit = previous_unit.replace(
+                "\u00b5", unicodedata.normalize("NFKC", "\u00b5")
+            )
         current_unit = self.native_unit_of_measurement
         if previous_unit is None or previous_unit == current_unit:
             return

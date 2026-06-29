@@ -28,17 +28,17 @@ class LumesCsvParsingTest(unittest.TestCase):
         self.assertEqual(33, len(parsed))
 
         expected = {
-            ("STA1", "PM10"): (13.7, "HMW", "µg/m³"),
-            ("STA1", "PM25"): (4.4, "HMW", "µg/m³"),
-            ("STA1", "O3"): (82.0, "HMW", "µg/m³"),
+            ("STA1", "PM10"): (13.7, "HMW", "μg/m³"),
+            ("STA1", "PM25"): (4.4, "HMW", "μg/m³"),
+            ("STA1", "O3"): (82.0, "HMW", "μg/m³"),
             ("STA1", "CO"): (0.21, "HMW", "mg/m³"),
-            ("STA2", "PM10"): (11.1, "MW24", "µg/m³"),
-            ("STA2", "PM25"): (2.7, "MW24", "µg/m³"),
-            ("STA2", "O3"): (79.0, "1MW", "µg/m³"),
+            ("STA2", "PM10"): (11.1, "MW24", "μg/m³"),
+            ("STA2", "PM25"): (2.7, "MW24", "μg/m³"),
+            ("STA2", "O3"): (79.0, "1MW", "μg/m³"),
             ("STA2", "CO"): (0.15, "MW8", "mg/m³"),
-            ("STA3", "PM10"): (None, None, "µg/m³"),
-            ("STA3", "PM25"): (4.6, "HMW", "µg/m³"),
-            ("STA3", "O3"): (79.5, "1MW", "µg/m³"),
+            ("STA3", "PM10"): (None, None, "μg/m³"),
+            ("STA3", "PM25"): (4.6, "HMW", "μg/m³"),
+            ("STA3", "O3"): (79.5, "1MW", "μg/m³"),
             ("STA3", "CO"): (0.17, "HMW", "mg/m³"),
         }
         expected_measured_at = datetime(

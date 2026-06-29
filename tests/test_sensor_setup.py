@@ -40,7 +40,7 @@ def _metric(
     value: float | None,
     measurement_type: str | None,
     *,
-    unit: str = "µg/m³",
+    unit: str = "μg/m³",
     measured_at: datetime | None = None,
 ) -> SelectedMetric:
     return SelectedMetric(value, unit, measurement_type, measured_at)
@@ -139,7 +139,7 @@ class MeasurementSensorTest(unittest.TestCase):
         self.assertEqual(1, sensor._attr_suggested_display_precision)
         self.assertFalse(sensor.available)
         self.assertIsNone(sensor.native_value)
-        self.assertEqual("µg/m³", sensor.native_unit_of_measurement)
+        self.assertEqual("μg/m³", sensor.native_unit_of_measurement)
         self.assertEqual(
             {
                 "district": 1,
@@ -160,7 +160,7 @@ class MeasurementSensorTest(unittest.TestCase):
     def test_unit_change_warns_once_per_new_state(self) -> None:
         station = _station()
         coordinator = _coordinator(
-            {("STA1", "PM25"): _metric("PM25", 12.3, "1MW", unit="µg/m³")},
+            {("STA1", "PM25"): _metric("PM25", 12.3, "1MW", unit="μg/m³")},
             station=station,
         )
         sensor = MeasurementSensor(
@@ -178,7 +178,10 @@ class MeasurementSensorTest(unittest.TestCase):
                 )
             )
         )
-        sensor.async_write_ha_state()
+        with self.assertNoLogs(
+            "custom_components.wiener_luft.sensor", level="WARNING"
+        ):
+            sensor.async_write_ha_state()
 
         sensor.coordinator.data = IntegrationData(
             stations={"STA1": station},
@@ -191,7 +194,7 @@ class MeasurementSensorTest(unittest.TestCase):
         ) as logs:
             sensor.async_write_ha_state()
         self.assertEqual(1, len(logs.output))
-        self.assertIn("changed from µg/m³ to mg/m³", logs.output[0])
+        self.assertIn("changed from μg/m³ to mg/m³", logs.output[0])
 
         sensor.hass.states.get.return_value = types.SimpleNamespace(
             attributes={"unit_of_measurement": "mg/m³"}
