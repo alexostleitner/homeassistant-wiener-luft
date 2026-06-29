@@ -16,6 +16,16 @@ class MeasurementSpec:
     state_class: str = "MEASUREMENT"
     icon: str | None = None
 
+
+DISPLAY_PRECISION_BY_UNIT: dict[str, int] = {
+    "µg/m³": 1,
+    "mg/m³": 2,
+    "°C": 1,
+    "%": 0,
+    "km/h": 1,
+    "°": 0,
+}
+
 MEASUREMENT_SPECS: dict[str, MeasurementSpec] = {
     "PM25": MeasurementSpec(
         translation_key="pm25",

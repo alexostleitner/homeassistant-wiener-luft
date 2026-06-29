@@ -20,7 +20,11 @@ from homeassistant.util import slugify
 
 from .const import DOMAIN, STALE_AFTER
 from .coordinator import IntegrationCoordinator
-from .measurements import MEASUREMENT_SPECS, MeasurementSpec
+from .measurements import (
+    DISPLAY_PRECISION_BY_UNIT,
+    MEASUREMENT_SPECS,
+    MeasurementSpec,
+)
 from .measurements_parser import SelectedMetric
 from .station import (
     Station,
@@ -126,6 +130,9 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             SensorStateClass, measurement_spec.state_class
         )
         self._attr_icon = measurement_spec.icon
+        self._attr_suggested_display_precision = (
+            DISPLAY_PRECISION_BY_UNIT.get(measurement_spec.unit)
+        )
         unique_id = (
             f"{DOMAIN}_{measurement_spec.measurement_slug}_{slugify(station.code)}"
         )

@@ -100,6 +100,7 @@ class MeasurementSensorTest(unittest.TestCase):
         self.assertEqual(
             MEASUREMENT_SPECS["WR"].translation_key, sensor._attr_translation_key
         )
+        self.assertEqual(0, sensor._attr_suggested_display_precision)
         self.assertTrue(sensor.available)
         self.assertEqual(180.0, sensor.native_value)
         self.assertEqual("°", sensor.native_unit_of_measurement)
@@ -135,6 +136,7 @@ class MeasurementSensorTest(unittest.TestCase):
             MEASUREMENT_SPECS["PM25"].translation_key,
             sensor._attr_translation_key,
         )
+        self.assertEqual(1, sensor._attr_suggested_display_precision)
         self.assertFalse(sensor.available)
         self.assertIsNone(sensor.native_value)
         self.assertEqual("µg/m³", sensor.native_unit_of_measurement)
@@ -204,14 +206,18 @@ class MeasurementSensorTest(unittest.TestCase):
         coordinator = _coordinator({})
 
         cases = {
-            "LTM": "sensor.wiener_luft_temperature_sta1",
-            "RF": "sensor.wiener_luft_humidity_sta1",
-            "WG": "sensor.wiener_luft_wind_speed_sta1",
-            "WR": "sensor.wiener_luft_wind_direction_sta1",
-            "PM25": "sensor.wiener_luft_pm25_sta1",
+            "LTM": ("sensor.wiener_luft_temperature_sta1", 1),
+            "RF": ("sensor.wiener_luft_humidity_sta1", 0),
+            "WG": ("sensor.wiener_luft_wind_speed_sta1", 1),
+            "WR": ("sensor.wiener_luft_wind_direction_sta1", 0),
+            "PM25": ("sensor.wiener_luft_pm25_sta1", 1),
+            "CO": ("sensor.wiener_luft_co_sta1", 2),
         }
 
-        for component, expected_entity_id in cases.items():
+        for component, (
+            expected_entity_id,
+            expected_precision,
+        ) in cases.items():
             with self.subTest(component=component):
                 sensor = MeasurementSensor(
                     coordinator,
@@ -229,6 +235,10 @@ class MeasurementSensorTest(unittest.TestCase):
                 self.assertEqual(
                     MEASUREMENT_SPECS[component].translation_key,
                     sensor._attr_translation_key,
+                )
+                self.assertEqual(
+                    expected_precision,
+                    sensor._attr_suggested_display_precision,
                 )
 
     def test_handle_coordinator_update_skips_unchanged_fresh_measurement(self) -> None:
