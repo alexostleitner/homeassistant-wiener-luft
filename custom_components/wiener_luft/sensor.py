@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -24,6 +25,8 @@ from .station import (
     station_device_info,
     station_state_attributes,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _build_entities(
@@ -150,6 +153,10 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         return station_state_attributes(self._current_station)
 
+    def async_write_ha_state(self) -> None:
+        self._log_unit_change()
+        super().async_write_ha_state()
+
     @property
     def _reading(self) -> SelectedMetric | None:
         if self.coordinator.data is None:
@@ -163,3 +170,24 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         if self.coordinator.data is None:
             return self._station
         return self.coordinator.data.stations.get(self._station_code, self._station)
+
+    def _log_unit_change(self) -> None:
+        hass = getattr(self, "hass", None)
+        if hass is None or self.entity_id is None:
+            return
+
+        old_state = hass.states.get(self.entity_id)
+        if old_state is None:
+            return
+
+        previous_unit = old_state.attributes.get("unit_of_measurement")
+        current_unit = self.native_unit_of_measurement
+        if previous_unit is None or previous_unit == current_unit:
+            return
+
+        LOGGER.warning(
+            "Unit of measurement for %s changed from %s to %s",
+            self.entity_id,
+            previous_unit,
+            current_unit,
+        )

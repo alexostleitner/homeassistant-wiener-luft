@@ -54,8 +54,15 @@ def install_homeassistant_stubs() -> None:
     const.ATTR_LONGITUDE = "longitude"
     const.Platform = type("Platform", (), {"SENSOR": "sensor"})
 
+    def _sensor_entity_async_write_ha_state(self) -> None:
+        return None
+
     sensor = modules["homeassistant.components.sensor"]
-    sensor.SensorEntity = type("SensorEntity", (), {})
+    sensor.SensorEntity = type(
+        "SensorEntity",
+        (),
+        {"async_write_ha_state": _sensor_entity_async_write_ha_state},
+    )
     sensor.SensorDeviceClass = _constants(
         "SensorDeviceClass",
         PM25="pm25",

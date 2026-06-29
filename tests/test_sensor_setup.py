@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import types
 import unittest
+from unittest.mock import Mock
 
 from homeassistant_stubs import install_homeassistant_stubs
 
@@ -148,6 +149,50 @@ class MeasurementSensorTest(unittest.TestCase):
             },
             sensor._attr_device_info,
         )
+
+    def test_unit_change_warns_once_per_new_state(self) -> None:
+        station = _station()
+        coordinator = _coordinator(
+            {("STA1", "PM25"): _metric("PM25", 12.3, "1MW", unit="µg/m³")},
+            station=station,
+        )
+        sensor = MeasurementSensor(
+            coordinator,
+            station,
+            "PM25",
+            MEASUREMENT_SPECS["PM25"],
+        )
+        sensor.hass = types.SimpleNamespace(
+            states=Mock(
+                get=Mock(
+                    return_value=types.SimpleNamespace(
+                        attributes={"unit_of_measurement": "µg/m³"}
+                    )
+                )
+            )
+        )
+        sensor.async_write_ha_state()
+
+        sensor.coordinator.data = IntegrationData(
+            stations={"STA1": station},
+            measurements={
+                ("STA1", "PM25"): _metric("PM25", 12.3, "1MW", unit="mg/m³"),
+            },
+        )
+        with self.assertLogs(
+            "custom_components.wiener_luft.sensor", level="WARNING"
+        ) as logs:
+            sensor.async_write_ha_state()
+        self.assertEqual(1, len(logs.output))
+        self.assertIn("changed from µg/m³ to mg/m³", logs.output[0])
+
+        sensor.hass.states.get.return_value = types.SimpleNamespace(
+            attributes={"unit_of_measurement": "mg/m³"}
+        )
+        with self.assertNoLogs(
+            "custom_components.wiener_luft.sensor", level="WARNING"
+        ):
+            sensor.async_write_ha_state()
 
     def test_entity_identifiers_share_slug_logic(self) -> None:
         station = _station()
