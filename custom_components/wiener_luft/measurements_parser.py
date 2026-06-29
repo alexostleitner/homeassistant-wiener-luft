@@ -5,11 +5,19 @@ from __future__ import annotations
 import csv
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 
 from .measurements import MEASUREMENT_PRIORITY, MEASUREMENT_SPECS
-from .parsing import decode_payload, parse_number
+from .parsing import MISSING_VALUES, decode_payload, parse_number
 
 LOGGER = logging.getLogger(__name__)
+TIMEZONES: dict[str, tzinfo] = {
+    "UTC": UTC,
+    "MEZ": timezone(timedelta(hours=1), name="MEZ"),
+    "MESZ": timezone(timedelta(hours=2), name="MESZ"),
+    "CET": timezone(timedelta(hours=1), name="CET"),
+    "CEST": timezone(timedelta(hours=2), name="CEST"),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +27,7 @@ class SelectedMetric:
     value: float | None
     unit: str
     measurement_type: str | None
+    measured_at: datetime | None
 
 
 def parse_lumes_csv(payload: str | bytes) -> dict[tuple[str, str], SelectedMetric]:
@@ -57,8 +66,8 @@ def parse_lumes_csv(payload: str | bytes) -> dict[tuple[str, str], SelectedMetri
 
 
 def _choose_column(
-    row: list[str], candidates: list[tuple[int, str, str]]
-) -> tuple[int, str, str] | None:
+    row: list[str], candidates: list[tuple[int, str, str, int | None, str | None]]
+) -> tuple[int, str, str, int | None, str | None] | None:
     for averaging_type in MEASUREMENT_PRIORITY:
         for column in candidates:
             if column[1] != averaging_type:
@@ -104,11 +113,17 @@ def _parse_lumes_header(
 
 def _collect_columns(
     component_row: list[str], averaging_row: list[str], unit_row: list[str]
-) -> dict[str, list[tuple[int, str, str]]]:
-    columns_by_component: dict[str, list[tuple[int, str, str]]] = {}
+) -> dict[str, list[tuple[int, str, str, int | None, str | None]]]:
+    columns_by_component: dict[
+        str, list[tuple[int, str, str, int | None, str | None]]
+    ] = {}
+    current_time_index: int | None = None
+    current_time_zone: str | None = None
     for index, raw_name in enumerate(component_row):
         name = raw_name.strip()
         if name.startswith("Zeit-"):
+            current_time_index = index
+            current_time_zone = unit_row[index].strip() or None
             continue
 
         averaging_type = averaging_row[index].strip()
@@ -122,7 +137,7 @@ def _collect_columns(
         spec = MEASUREMENT_SPECS[component]
         unit = unit_row[index].strip() or spec.unit
         columns_by_component.setdefault(component, []).append(
-            (index, averaging_type, unit)
+            (index, averaging_type, unit, current_time_index, current_time_zone)
         )
     return columns_by_component
 
@@ -131,7 +146,9 @@ def _select_row_measurements(
     selected: dict[tuple[str, str], SelectedMetric],
     station_code: str,
     row: list[str],
-    columns_by_component: dict[str, list[tuple[int, str, str]]],
+    columns_by_component: dict[
+        str, list[tuple[int, str, str, int | None, str | None]]
+    ],
 ) -> None:
     for component, component_columns in columns_by_component.items():
         chosen_column = _choose_column(row, component_columns)
@@ -141,12 +158,35 @@ def _select_row_measurements(
                 value=None,
                 unit=unit,
                 measurement_type=None,
+                measured_at=None,
             )
             continue
 
-        index, averaging_type, chosen_unit = chosen_column
+        index, averaging_type, chosen_unit, time_index, time_zone = chosen_column
+        measured_at_text = (
+            row[time_index]
+            if time_index is not None and time_index < len(row)
+            else None
+        )
+        measured_at: datetime | None = None
+        parsed_time_zone: tzinfo | None = None
+        if time_zone is not None:
+            time_zone_text = time_zone.strip().upper()
+            if time_zone_text and time_zone_text not in MISSING_VALUES:
+                parsed_time_zone = TIMEZONES.get(time_zone_text)
+                if parsed_time_zone is None:
+                    LOGGER.warning("Could not parse timezone value %r", time_zone)
+        if measured_at_text is not None and parsed_time_zone is not None:
+            try:
+                measured_at = datetime.strptime(
+                    measured_at_text, "%d.%m.%Y, %H:%M"
+                ).replace(tzinfo=parsed_time_zone)
+            except ValueError:
+                LOGGER.warning("Could not parse datetime value %r", measured_at_text)
+
         selected[(station_code, component)] = SelectedMetric(
             value=parse_number(row[index] if index < len(row) else None),
             unit=chosen_unit or unit,
             measurement_type=averaging_type,
+            measured_at=measured_at,
         )

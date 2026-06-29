@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from homeassistant_stubs import install_homeassistant_stubs
@@ -40,6 +41,14 @@ class LumesCsvParsingTest(unittest.TestCase):
             ("STA3", "O3"): (79.5, "1MW", "µg/m³"),
             ("STA3", "CO"): (0.17, "HMW", "mg/m³"),
         }
+        expected_measured_at = datetime(
+            2026,
+            6,
+            24,
+            22,
+            30,
+            tzinfo=timezone(timedelta(hours=2), name="MESZ"),
+        )
         for key, expected_value in expected.items():
             with self.subTest(key=key):
                 metric = parsed[key]
@@ -47,3 +56,7 @@ class LumesCsvParsingTest(unittest.TestCase):
                     expected_value,
                     (metric.value, metric.measurement_type, metric.unit),
                 )
+                if metric.value is None:
+                    self.assertIsNone(metric.measured_at)
+                else:
+                    self.assertEqual(expected_measured_at, metric.measured_at)

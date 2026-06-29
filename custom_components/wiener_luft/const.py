@@ -16,4 +16,5 @@ STATIONS_URL = (
 
 MEASUREMENT_UPDATE_INTERVAL = timedelta(minutes=30)
 STATION_UPDATE_INTERVAL = timedelta(days=1)
+STALE_AFTER = timedelta(hours=2)
 HTTP_TIMEOUT_SECONDS = 20

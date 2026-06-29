@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 import types
 import unittest
-from unittest.mock import Mock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock, patch
 
 from homeassistant_stubs import install_homeassistant_stubs
 
 install_homeassistant_stubs()
 
+from custom_components.wiener_luft import sensor as sensor_module  # noqa: E402
 from custom_components.wiener_luft.coordinator import (  # noqa: E402
     IntegrationData,
 )
@@ -26,6 +28,8 @@ from custom_components.wiener_luft.sensor import (  # noqa: E402
 )
 from custom_components.wiener_luft.station import Station  # noqa: E402
 
+NOW = datetime(2026, 6, 25, 12, 0, tzinfo=UTC)
+
 
 def _station(*, station_url: str | None = None) -> Station:
     return Station("STA1", "Station 1", 1, 48.2, 16.3, station_url)
@@ -37,8 +41,9 @@ def _metric(
     measurement_type: str | None,
     *,
     unit: str = "µg/m³",
+    measured_at: datetime | None = None,
 ) -> SelectedMetric:
-    return SelectedMetric(value, unit, measurement_type)
+    return SelectedMetric(value, unit, measurement_type, measured_at)
 
 
 def _coordinator(
@@ -225,6 +230,100 @@ class MeasurementSensorTest(unittest.TestCase):
                     MEASUREMENT_SPECS[component].translation_key,
                     sensor._attr_translation_key,
                 )
+
+    def test_handle_coordinator_update_skips_unchanged_fresh_measurement(self) -> None:
+        cases = (
+            {
+                "name": "fresh measurement is skipped",
+                "initial_measured_at": NOW - timedelta(minutes=30),
+                "update_now": NOW,
+                "next_metric": None,
+                "expected_writes": 0,
+                "expected_available": True,
+                "final_now": NOW,
+            },
+            {
+                "name": "stale measurement writes once",
+                "initial_measured_at": NOW - timedelta(minutes=30),
+                "update_now": NOW + timedelta(hours=3),
+                "next_metric": None,
+                "repeat_update": True,
+                "expected_writes": 1,
+                "expected_available": False,
+                "final_now": NOW + timedelta(hours=3),
+            },
+            {
+                "name": "new measurement recovers availability",
+                "initial_measured_at": NOW - timedelta(hours=3),
+                "update_now": NOW,
+                "next_metric": _metric(
+                    "PM25",
+                    13.4,
+                    "1MW",
+                    measured_at=NOW - timedelta(minutes=10),
+                ),
+                "next_now": NOW,
+                "expected_writes": 1,
+                "expected_available": True,
+                "final_now": NOW,
+            },
+        )
+
+        for case in cases:
+            with self.subTest(case=case["name"]):
+                station = _station()
+                coordinator = _coordinator(
+                    {
+                        ("STA1", "PM25"): _metric(
+                            "PM25",
+                            12.3,
+                            "1MW",
+                            measured_at=case["initial_measured_at"],
+                        )
+                    },
+                    station=station,
+                )
+                with patch.object(sensor_module.dt_util, "utcnow", return_value=NOW):
+                    sensor = MeasurementSensor(
+                        coordinator,
+                        station,
+                        "PM25",
+                        MEASUREMENT_SPECS["PM25"],
+                    )
+                sensor.async_write_ha_state = Mock()
+
+                with patch.object(
+                    sensor_module.dt_util,
+                    "utcnow",
+                    return_value=case["update_now"],
+                ):
+                    sensor._handle_coordinator_update()
+                    if case.get("repeat_update"):
+                        sensor._handle_coordinator_update()
+
+                next_metric = case["next_metric"]
+                if next_metric is not None:
+                    coordinator.data = IntegrationData(
+                        stations={"STA1": station},
+                        measurements={("STA1", "PM25"): next_metric},
+                    )
+                    with patch.object(
+                        sensor_module.dt_util,
+                        "utcnow",
+                        return_value=case["next_now"],
+                    ):
+                        sensor._handle_coordinator_update()
+
+                self.assertEqual(
+                    case["expected_writes"],
+                    sensor.async_write_ha_state.call_count,
+                )
+                with patch.object(
+                    sensor_module.dt_util,
+                    "utcnow",
+                    return_value=case["final_now"],
+                ):
+                    self.assertEqual(case["expected_available"], sensor.available)
 
 
 class SensorSetupTest(unittest.TestCase):
