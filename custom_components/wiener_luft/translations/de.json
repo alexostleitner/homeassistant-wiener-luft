@@ -1,4 +1,33 @@
 {
+  "config": {
+    "abort": {
+      "already_configured": "Die Integration ist bereits eingerichtet.",
+      "measurements_cannot_connect": "Die API für aktuelle Messwerte war nicht erreichbar. URL: {url}",
+      "measurements_invalid_response": "Die API für aktuelle Messwerte lieferte keine verwertbaren Daten. URL: {url}",
+      "stations_cannot_connect": "Die API für Messstationen war nicht erreichbar. URL: {url}",
+      "stations_invalid_response": "Die API für Messstationen lieferte keine verwertbaren Daten. URL: {url}"
+    },
+    "error": {
+      "measurement_required": "Bitte mindestens einen Messwert auswählen.",
+      "station_required": "Bitte mindestens eine Messstation auswählen."
+    },
+    "step": {
+      "measurements": {
+        "data": {
+          "measurements": "Messwerte"
+        },
+        "description": "Wähle die gewünschten Messwerte für die zuvor ausgewählten Stationen. Angaben wie (9/15) zeigen, bei wie vielen ausgewählten Stationen der Messwert aktuell verfügbar ist.",
+        "title": "Messwerte auswählen"
+      },
+      "user": {
+        "data": {
+          "stations": "Messstationen"
+        },
+        "description": "Wähle die Messstationen aus, die in Home Assistant angelegt werden sollen.",
+        "title": "Messstationen auswählen"
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "pm25": {
@@ -33,6 +62,34 @@
       },
       "wind_direction": {
         "name": "Windrichtung"
+      }
+    }
+  },
+  "options": {
+    "abort": {
+      "measurements_cannot_connect": "Die API für aktuelle Messwerte war nicht erreichbar. URL: {url}",
+      "measurements_invalid_response": "Die API für aktuelle Messwerte lieferte keine verwertbaren Daten. URL: {url}",
+      "stations_cannot_connect": "Die API für Messstationen war nicht erreichbar. URL: {url}",
+      "stations_invalid_response": "Die API für Messstationen lieferte keine verwertbaren Daten. URL: {url}"
+    },
+    "error": {
+      "measurement_required": "Bitte mindestens einen Messwert auswählen.",
+      "station_required": "Bitte mindestens eine Messstation auswählen."
+    },
+    "step": {
+      "init": {
+        "data": {
+          "stations": "Messstationen"
+        },
+        "description": "Wähle die Messstationen aus, die in Home Assistant aktiv sein sollen.",
+        "title": "Messstationen auswählen"
+      },
+      "measurements": {
+        "data": {
+          "measurements": "Messwerte"
+        },
+        "description": "Wähle die gewünschten Messwerte für die zuvor ausgewählten Stationen. Angaben wie (9/15) zeigen, bei wie vielen ausgewählten Stationen der Messwert aktuell verfügbar ist.",
+        "title": "Messwerte auswählen"
       }
     }
   }

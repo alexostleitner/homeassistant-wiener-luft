@@ -14,12 +14,19 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
-from .const import CALM_WIND_SPEED_MPS, DOMAIN, STALE_AFTER
+from .const import (
+    CALM_WIND_SPEED_MPS,
+    CONF_MEASUREMENTS,
+    CONF_STATIONS,
+    DOMAIN,
+    STALE_AFTER,
+)
 from .coordinator import IntegrationCoordinator
 from .measurements import (
     DISPLAY_PRECISION_BY_UNIT,
@@ -37,8 +44,56 @@ LOGGER = logging.getLogger(__name__)
 StateToken = tuple[str, datetime | None, float | None, str, Station]
 
 
+def _build_unique_id(station_code: str, component: str) -> str:
+    """Build the stable unique ID for one station/measurement entity."""
+
+    return (
+        f"{DOMAIN}_{MEASUREMENT_SPECS[component].measurement_slug}_"
+        f"{slugify(station_code)}"
+    )
+
+
+def _sync_entity_registry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    selected_stations: set[str] | None,
+    selected_measurements: set[str] | None,
+) -> None:
+    """Enable or disable registry entries to match explicit selections."""
+
+    if selected_stations is None or selected_measurements is None:
+        return
+
+    selected_unique_ids = {
+        _build_unique_id(station_code, component)
+        for station_code in selected_stations
+        for component in selected_measurements
+    }
+    registry = er.async_get(hass)
+    for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if (
+            registry_entry.domain != "sensor"
+            or not registry_entry.unique_id.startswith(f"{DOMAIN}_")
+        ):
+            continue
+        if registry_entry.unique_id in selected_unique_ids:
+            if registry_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION:
+                registry.async_update_entity(
+                    registry_entry.entity_id,
+                    disabled_by=None,
+                )
+            continue
+        if registry_entry.disabled_by is None:
+            registry.async_update_entity(
+                registry_entry.entity_id,
+                disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+            )
+
+
 def _build_entities(
     coordinator: IntegrationCoordinator,
+    selected_stations: set[str] | None,
+    selected_measurements: set[str] | None,
     known_entity_keys: set[tuple[str, str]] | None = None,
 ) -> list[MeasurementSensor]:
     entities: list[MeasurementSensor] = []
@@ -54,6 +109,13 @@ def _build_entities(
             station is None
             or reading.value is None
             or reading.measurement_type is None
+            or (
+                selected_stations is not None and station_code not in selected_stations
+            )
+            or (
+                selected_measurements is not None
+                and component not in selected_measurements
+            )
         ):
             continue
         if known_entity_keys is not None and entity_key in known_entity_keys:
@@ -82,14 +144,32 @@ async def async_setup_entry(
     """Set up sensors from a config entry."""
 
     coordinator = entry.runtime_data
-    entities = _build_entities(coordinator)
+    preferences = dict(entry.data)
+    preferences.update(entry.options)
+    if CONF_STATIONS in preferences and CONF_MEASUREMENTS in preferences:
+        selected_stations = set(preferences[CONF_STATIONS])
+        selected_measurements = set(preferences[CONF_MEASUREMENTS])
+    else:
+        selected_stations = None
+        selected_measurements = None
+    _sync_entity_registry(hass, entry, selected_stations, selected_measurements)
+    entities = _build_entities(
+        coordinator,
+        selected_stations,
+        selected_measurements,
+    )
     known_entity_keys = {
         (entity._station_code, entity._component) for entity in entities
     }
     async_add_entities(entities)
 
     def async_add_new_entities() -> None:
-        new_entities = _build_entities(coordinator, known_entity_keys)
+        new_entities = _build_entities(
+            coordinator,
+            selected_stations,
+            selected_measurements,
+            known_entity_keys,
+        )
         if not new_entities:
             return
 
@@ -134,10 +214,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         self._attr_suggested_display_precision = (
             DISPLAY_PRECISION_BY_UNIT.get(measurement_spec.unit)
         )
-        unique_id = (
-            f"{DOMAIN}_{measurement_spec.measurement_slug}_{slugify(station.code)}"
-        )
-        self._attr_unique_id = unique_id
+        self._attr_unique_id = _build_unique_id(station.code, component)
         self._attr_device_info = station_device_info(station)
         self._last_written_token = self._state_token
 

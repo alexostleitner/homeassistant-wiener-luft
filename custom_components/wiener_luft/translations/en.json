@@ -1,4 +1,33 @@
 {
+  "config": {
+    "abort": {
+      "already_configured": "The integration is already configured.",
+      "measurements_cannot_connect": "The current measurements API could not be reached. URL: {url}",
+      "measurements_invalid_response": "The current measurements API returned no usable data. URL: {url}",
+      "stations_cannot_connect": "The monitoring stations API could not be reached. URL: {url}",
+      "stations_invalid_response": "The monitoring stations API returned no usable data. URL: {url}"
+    },
+    "error": {
+      "measurement_required": "Select at least one measurement.",
+      "station_required": "Select at least one monitoring station."
+    },
+    "step": {
+      "measurements": {
+        "data": {
+          "measurements": "Measurements"
+        },
+        "description": "Select the measurements for the previously selected stations. Labels like (9/15) show how many selected stations currently provide that measurement.",
+        "title": "Select measurements"
+      },
+      "user": {
+        "data": {
+          "stations": "Monitoring stations"
+        },
+        "description": "Select the monitoring stations that should be created in Home Assistant.",
+        "title": "Select monitoring stations"
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "pm25": {
@@ -33,6 +62,34 @@
       },
       "wind_direction": {
         "name": "Wind direction"
+      }
+    }
+  },
+  "options": {
+    "abort": {
+      "measurements_cannot_connect": "The current measurements API could not be reached. URL: {url}",
+      "measurements_invalid_response": "The current measurements API returned no usable data. URL: {url}",
+      "stations_cannot_connect": "The monitoring stations API could not be reached. URL: {url}",
+      "stations_invalid_response": "The monitoring stations API returned no usable data. URL: {url}"
+    },
+    "error": {
+      "measurement_required": "Select at least one measurement.",
+      "station_required": "Select at least one monitoring station."
+    },
+    "step": {
+      "init": {
+        "data": {
+          "stations": "Monitoring stations"
+        },
+        "description": "Select the monitoring stations that should remain active in Home Assistant.",
+        "title": "Select monitoring stations"
+      },
+      "measurements": {
+        "data": {
+          "measurements": "Measurements"
+        },
+        "description": "Select the measurements for the previously selected stations. Labels like (9/15) show how many selected stations currently provide that measurement.",
+        "title": "Select measurements"
       }
     }
   }

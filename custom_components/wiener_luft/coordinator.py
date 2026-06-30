@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from functools import partial
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 from homeassistant.config_entries import ConfigEntry
@@ -26,6 +26,14 @@ from .station import Station
 from .stations_parser import parse_station_geojson
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class FlowFetchError(Exception):
+    """Structured fetch error that can be surfaced in config flow UI."""
+
+    reason: str
+    placeholders: dict[str, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,11 +80,7 @@ class IntegrationCoordinator(
 
         self._stations_last_refresh_attempt = now
         try:
-            with await self.hass.async_add_executor_job(
-                partial(urlopen, STATIONS_URL, timeout=HTTP_TIMEOUT_SECONDS)
-            ) as response:
-                payload = await self.hass.async_add_executor_job(response.read)
-            self.stations = parse_station_geojson(payload)
+            self.stations = await async_fetch_stations(self.hass)
         except Exception as err:
             if not self.stations:
                 raise UpdateFailed("Could not load station metadata") from err
@@ -90,11 +94,7 @@ class IntegrationCoordinator(
         station_refresh_succeeded = await self.async_refresh_stations()
 
         try:
-            with await self.hass.async_add_executor_job(
-                partial(urlopen, MEASUREMENTS_URL, timeout=HTTP_TIMEOUT_SECONDS)
-            ) as response:
-                payload = await self.hass.async_add_executor_job(response.read)
-            measurements = parse_lumes_csv(payload)
+            measurements = await async_fetch_measurements(self.hass)
         except Exception as err:
             raise UpdateFailed(
                 "Could not update Wiener Luftmessnetz measurements"
@@ -123,3 +123,44 @@ class IntegrationCoordinator(
                 "present in station metadata",
                 station_code,
             )
+
+
+def _fetch_payload(url: str) -> bytes:
+    """Fetch one payload from the configured source URL."""
+
+    try:
+        with urlopen(url, timeout=HTTP_TIMEOUT_SECONDS) as response:
+            return response.read()
+    except (HTTPError, URLError, TimeoutError) as err:
+        raise FlowFetchError("cannot_connect", {"url": url}) from err
+
+
+async def async_fetch_stations(hass: HomeAssistant) -> dict[str, Station]:
+    """Fetch and parse station metadata."""
+
+    try:
+        stations = parse_station_geojson(
+            await hass.async_add_executor_job(_fetch_payload, STATIONS_URL)
+        )
+    except FlowFetchError:
+        raise
+    except Exception as err:
+        raise FlowFetchError("invalid_response", {"url": STATIONS_URL}) from err
+    if not stations:
+        raise FlowFetchError("invalid_response", {"url": STATIONS_URL})
+    return stations
+
+
+async def async_fetch_measurements(
+    hass: HomeAssistant,
+) -> dict[tuple[str, str], SelectedMetric]:
+    """Fetch and parse current measurements."""
+
+    try:
+        return parse_lumes_csv(
+            await hass.async_add_executor_job(_fetch_payload, MEASUREMENTS_URL)
+        )
+    except FlowFetchError:
+        raise
+    except Exception as err:
+        raise FlowFetchError("invalid_response", {"url": MEASUREMENTS_URL}) from err

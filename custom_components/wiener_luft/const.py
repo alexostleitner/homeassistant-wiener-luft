@@ -4,6 +4,8 @@ from homeassistant.const import Platform
 
 DOMAIN = "wiener_luft"
 NAME = "Wiener Luft"
+CONF_STATIONS = "stations"
+CONF_MEASUREMENTS = "measurements"
 
 PLATFORMS = [Platform.SENSOR]
 

@@ -79,6 +79,60 @@ def _expected_entity_base(component: str, station_code: str = "STA1") -> str:
     return f"wiener_luft_{measurement_spec.measurement_slug}_{station_code.lower()}"
 
 
+def _entry(
+    coordinator,
+    *,
+    data: dict | None = None,
+    options: dict | None = None,
+    entry_id: str = "entry-1",
+):
+    return types.SimpleNamespace(
+        runtime_data=coordinator,
+        data=data or {},
+        options=options or {},
+        entry_id=entry_id,
+        async_on_unload=lambda func: func,
+    )
+
+
+def _registry_entry(
+    station_code: str,
+    component: str,
+    *,
+    disabled_by=None,
+    entity_id: str | None = None,
+    entry_id: str = "entry-1",
+):
+    return types.SimpleNamespace(
+        domain="sensor",
+        unique_id=_expected_entity_base(component, station_code),
+        disabled_by=disabled_by,
+        entity_id=entity_id
+        or f"sensor.{component.lower()}_{station_code.lower()}",
+        config_entry_id=entry_id,
+    )
+
+
+def _registry(entries):
+    updates = []
+
+    class Registry:
+        def __init__(self):
+            self.entries = list(entries)
+
+        def async_update_entity(self, entity_id, **changes):
+            updates.append((entity_id, changes))
+            for entry in self.entries:
+                if entry.entity_id == entity_id:
+                    for key, value in changes.items():
+                        setattr(entry, key, value)
+                    break
+
+    registry = Registry()
+    registry.updates = updates
+    return registry
+
+
 class MeasurementSensorTest(unittest.TestCase):
     def test_sensor_state(self) -> None:
         station = _station(station_url="https://example.test/stations/sta1")
@@ -408,13 +462,11 @@ class SensorSetupTest(unittest.TestCase):
             }
         )
         batches: list[list[object]] = []
+        hass = types.SimpleNamespace(entity_registry=_registry([]))
         asyncio.run(
             async_setup_entry(
-                types.SimpleNamespace(),
-                types.SimpleNamespace(
-                    runtime_data=coordinator,
-                    async_on_unload=lambda func: func,
-                ),
+                hass,
+                _entry(coordinator),
                 lambda entities: batches.append(list(entities)),
             )
         )
@@ -444,15 +496,72 @@ class SensorSetupTest(unittest.TestCase):
             }
         )
         batches: list[list[object]] = []
+        hass = types.SimpleNamespace(entity_registry=_registry([]))
         asyncio.run(
             async_setup_entry(
-                types.SimpleNamespace(),
-                types.SimpleNamespace(
-                    runtime_data=coordinator,
-                    async_on_unload=lambda func: func,
-                ),
+                hass,
+                _entry(coordinator),
                 lambda entities: batches.append(list(entities)),
             )
         )
         self.assertEqual(1, len(batches))
         self.assertEqual(["PM25"], [entity._component for entity in batches[0]])
+
+    def test_setup_filters_entities_by_explicit_selection(self) -> None:
+        coordinator = _coordinator(
+            {
+                ("STA1", "PM25"): _metric("PM25", 12.3, "1MW"),
+                ("STA1", "O3"): _metric("O3", 1.0, "HMW"),
+                ("STA1", "WR"): _metric("WR", 180.0, "HMW", unit="°"),
+            }
+        )
+        batches: list[list[object]] = []
+        hass = types.SimpleNamespace(entity_registry=_registry([]))
+        asyncio.run(
+            async_setup_entry(
+                hass,
+                _entry(
+                    coordinator,
+                    data={"stations": ["STA1"], "measurements": ["PM25", "WR"]},
+                ),
+                lambda entities: batches.append(list(entities)),
+            )
+        )
+
+        self.assertEqual(["PM25", "WR"], [entity._component for entity in batches[0]])
+
+    def test_setup_disables_and_reenables_registry_entries(self) -> None:
+        coordinator = _coordinator({("STA1", "PM25"): _metric("PM25", 12.3, "1MW")})
+        registry = _registry(
+            [
+                _registry_entry("STA1", "PM25", disabled_by="integration"),
+                _registry_entry("STA1", "O3"),
+                types.SimpleNamespace(
+                    domain="sensor",
+                    unique_id="other_integration_sensor",
+                    disabled_by=None,
+                    entity_id="sensor.ignore_me",
+                    config_entry_id="entry-1",
+                ),
+            ]
+        )
+        hass = types.SimpleNamespace(entity_registry=registry)
+
+        asyncio.run(
+            async_setup_entry(
+                hass,
+                _entry(
+                    coordinator,
+                    data={"stations": ["STA1"], "measurements": ["PM25"]},
+                ),
+                lambda entities: None,
+            )
+        )
+
+        self.assertEqual(
+            [
+                ("sensor.pm25_sta1", {"disabled_by": None}),
+                ("sensor.o3_sta1", {"disabled_by": "integration"}),
+            ],
+            registry.updates,
+        )
