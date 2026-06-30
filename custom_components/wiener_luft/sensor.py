@@ -139,7 +139,6 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         )
         self._attr_unique_id = unique_id
         self._attr_device_info = station_device_info(station)
-        self.entity_id = f"sensor.{unique_id}"
         self._last_written_token = self._state_token
 
     @property
@@ -240,10 +239,11 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
 
     def _log_unit_change(self) -> None:
         hass = getattr(self, "hass", None)
-        if hass is None or self.entity_id is None:
+        entity_id = getattr(self, "entity_id", None)
+        if hass is None or entity_id is None:
             return
 
-        old_state = hass.states.get(self.entity_id)
+        old_state = hass.states.get(entity_id)
         if old_state is None:
             return
 
@@ -258,7 +258,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
 
         LOGGER.warning(
             "Unit of measurement for %s changed from %s to %s",
-            self.entity_id,
+            entity_id,
             previous_unit,
             current_unit,
         )

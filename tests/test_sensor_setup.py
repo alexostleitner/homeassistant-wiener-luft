@@ -92,11 +92,7 @@ class MeasurementSensorTest(unittest.TestCase):
             "WR",
             MEASUREMENT_SPECS["WR"],
         )
-        self.assertEqual(f"sensor.{_expected_entity_base('WR')}", sensor.entity_id)
         self.assertEqual(_expected_entity_base("WR"), sensor._attr_unique_id)
-        self.assertEqual(
-            sensor._attr_unique_id, sensor.entity_id.removeprefix("sensor.")
-        )
         self.assertEqual(
             MEASUREMENT_SPECS["WR"].translation_key, sensor._attr_translation_key
         )
@@ -131,7 +127,6 @@ class MeasurementSensorTest(unittest.TestCase):
             MEASUREMENT_SPECS["PM25"],
         )
         sensor.coordinator.data = None
-        self.assertEqual(f"sensor.{_expected_entity_base('PM25')}", sensor.entity_id)
         self.assertEqual(
             MEASUREMENT_SPECS["PM25"].translation_key,
             sensor._attr_translation_key,
@@ -196,6 +191,7 @@ class MeasurementSensorTest(unittest.TestCase):
             "PM25",
             MEASUREMENT_SPECS["PM25"],
         )
+        sensor.entity_id = "sensor.test_pm25"
         sensor.hass = types.SimpleNamespace(
             states=Mock(
                 get=Mock(
@@ -236,18 +232,15 @@ class MeasurementSensorTest(unittest.TestCase):
         coordinator = _coordinator({})
 
         cases = {
-            "LTM": ("sensor.wiener_luft_temperature_sta1", 1),
-            "RF": ("sensor.wiener_luft_humidity_sta1", 0),
-            "WG": ("sensor.wiener_luft_wind_speed_sta1", 1),
-            "WR": ("sensor.wiener_luft_wind_direction_sta1", 0),
-            "PM25": ("sensor.wiener_luft_pm25_sta1", 1),
-            "CO": ("sensor.wiener_luft_co_sta1", 2),
+            "LTM": 1,
+            "RF": 0,
+            "WG": 1,
+            "WR": 0,
+            "PM25": 1,
+            "CO": 2,
         }
 
-        for component, (
-            expected_entity_id,
-            expected_precision,
-        ) in cases.items():
+        for component, expected_precision in cases.items():
             with self.subTest(component=component):
                 sensor = MeasurementSensor(
                     coordinator,
@@ -255,12 +248,8 @@ class MeasurementSensorTest(unittest.TestCase):
                     component,
                     MEASUREMENT_SPECS[component],
                 )
-                self.assertEqual(expected_entity_id, sensor.entity_id)
                 self.assertEqual(
                     _expected_entity_base(component), sensor._attr_unique_id
-                )
-                self.assertEqual(
-                    sensor._attr_unique_id, sensor.entity_id.removeprefix("sensor.")
                 )
                 self.assertEqual(
                     MEASUREMENT_SPECS[component].translation_key,
