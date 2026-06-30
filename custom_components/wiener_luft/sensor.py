@@ -19,7 +19,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
-from .const import DOMAIN, STALE_AFTER
+from .const import CALM_WIND_SPEED_MPS, DOMAIN, STALE_AFTER
 from .coordinator import IntegrationCoordinator
 from .measurements import (
     DISPLAY_PRECISION_BY_UNIT,
@@ -34,7 +34,7 @@ from .station import (
 )
 
 LOGGER = logging.getLogger(__name__)
-StateToken = tuple[str, datetime | None, str, Station]
+StateToken = tuple[str, datetime | None, float | None, str, Station]
 
 
 def _build_entities(
@@ -149,7 +149,11 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         reading = self._reading
-        return reading.value if reading is not None else None
+        if reading is None:
+            return None
+        if self._component == "WR" and self._wind_speed_is_calm:
+            return None
+        return reading.value
 
     @property
     def native_unit_of_measurement(self) -> str:
@@ -203,9 +207,27 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         return (
             self._availability_state,
             None if reading is None else reading.measured_at,
+            self.native_value,
             self.native_unit_of_measurement,
             self._current_station,
         )
+
+    @property
+    def _wind_speed_is_calm(self) -> bool:
+        if self.coordinator.data is None:
+            return False
+
+        wind_speed = self.coordinator.data.measurements.get(
+            (self._station_code, "WG")
+        )
+        if wind_speed is None or wind_speed.value is None:
+            return False
+
+        if wind_speed.unit == "m/s":
+            return wind_speed.value < CALM_WIND_SPEED_MPS
+        if wind_speed.unit == "km/h":
+            return wind_speed.value / 3.6 < CALM_WIND_SPEED_MPS
+        return False
 
     def _is_stale(self, reading: SelectedMetric) -> bool:
         measured_at = reading.measured_at

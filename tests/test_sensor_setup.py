@@ -157,6 +157,33 @@ class MeasurementSensorTest(unittest.TestCase):
             sensor._attr_device_info,
         )
 
+    def test_wind_direction_calm_threshold(self) -> None:
+        station = _station()
+        cases = (
+            (1.7, None),
+            (1.8, 180.0),
+        )
+
+        for wind_speed, expected_value in cases:
+            with self.subTest(wind_speed=wind_speed):
+                sensor = MeasurementSensor(
+                    _coordinator(
+                        {
+                            ("STA1", "WR"): _metric("WR", 180.0, "HMW", unit="°"),
+                            ("STA1", "WG"): _metric(
+                                "WG", wind_speed, "HMW", unit="km/h"
+                            ),
+                        },
+                        station=station,
+                    ),
+                    station,
+                    "WR",
+                    MEASUREMENT_SPECS["WR"],
+                )
+
+                self.assertTrue(sensor.available)
+                self.assertEqual(expected_value, sensor.native_value)
+
     def test_unit_change_warns_once_per_new_state(self) -> None:
         station = _station()
         coordinator = _coordinator(
@@ -337,6 +364,47 @@ class MeasurementSensorTest(unittest.TestCase):
                     return_value=case["final_now"],
                 ):
                     self.assertEqual(case["expected_available"], sensor.available)
+
+    def test_wind_direction_update_writes_when_wind_becomes_calm(self) -> None:
+        station = _station()
+        measured_at = NOW - timedelta(minutes=10)
+        coordinator = _coordinator(
+            {
+                ("STA1", "WR"): _metric(
+                    "WR", 180.0, "HMW", unit="°", measured_at=measured_at
+                ),
+                ("STA1", "WG"): _metric(
+                    "WG", 5.0, "HMW", unit="km/h", measured_at=measured_at
+                ),
+            },
+            station=station,
+        )
+        with patch.object(sensor_module.dt_util, "utcnow", return_value=NOW):
+            sensor = MeasurementSensor(
+                coordinator,
+                station,
+                "WR",
+                MEASUREMENT_SPECS["WR"],
+            )
+
+        sensor.async_write_ha_state = Mock()
+        coordinator.data = IntegrationData(
+            stations={"STA1": station},
+            measurements={
+                ("STA1", "WR"): _metric(
+                    "WR", 180.0, "HMW", unit="°", measured_at=measured_at
+                ),
+                ("STA1", "WG"): _metric(
+                    "WG", 1.7, "HMW", unit="km/h", measured_at=measured_at
+                ),
+            },
+        )
+
+        with patch.object(sensor_module.dt_util, "utcnow", return_value=NOW):
+            sensor._handle_coordinator_update()
+
+        self.assertEqual(1, sensor.async_write_ha_state.call_count)
+        self.assertIsNone(sensor.native_value)
 
 
 class SensorSetupTest(unittest.TestCase):
