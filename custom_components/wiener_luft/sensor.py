@@ -92,43 +92,48 @@ def _build_entities(
     selected_measurements: set[str] | None,
     known_entity_keys: set[tuple[str, str]] | None = None,
 ) -> list[MeasurementSensor]:
-    entities: list[MeasurementSensor] = []
     if coordinator.data is None:
-        return entities
+        return []
 
-    for (station_code, component), reading in (
-        coordinator.data.measurements.items()
-    ):
-        station = coordinator.data.stations.get(station_code)
-        entity_key = (station_code, component)
-        if (
-            station is None
-            or reading.value is None
-            or reading.measurement_type is None
-            or (
-                selected_stations is not None and station_code not in selected_stations
-            )
-            or (
-                selected_measurements is not None
-                and component not in selected_measurements
-            )
-        ):
-            continue
-        if known_entity_keys is not None and entity_key in known_entity_keys:
+    explicit_selection = (
+        selected_stations is not None and selected_measurements is not None
+    )
+    entities: list[MeasurementSensor] = []
+    for station_code, station in coordinator.data.stations.items():
+        if selected_stations is not None and station_code not in selected_stations:
             continue
 
-        spec = MEASUREMENT_SPECS.get(component)
-        if spec is None:
-            continue
-
-        entities.append(
-            MeasurementSensor(
-                coordinator,
-                station,
-                component,
-                spec,
+        components = (
+            (
+                component
+                for component in MEASUREMENT_SPECS
+                if component in selected_measurements
             )
+            if explicit_selection
+            else MEASUREMENT_SPECS.keys()
         )
+        for component in components:
+            spec = MEASUREMENT_SPECS.get(component)
+            entity_key = (station_code, component)
+            reading = coordinator.data.measurements.get(entity_key)
+            if (
+                spec is None
+                or (
+                    known_entity_keys is not None
+                    and entity_key in known_entity_keys
+                )
+                or (
+                    not explicit_selection
+                    and (
+                        reading is None
+                        or reading.value is None
+                        or reading.measurement_type is None
+                    )
+                )
+            ):
+                continue
+
+            entities.append(MeasurementSensor(coordinator, station, component, spec))
     return entities
 
 

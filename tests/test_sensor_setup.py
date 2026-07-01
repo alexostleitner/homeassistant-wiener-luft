@@ -506,6 +506,48 @@ class SensorSetupTest(unittest.TestCase):
 
         self.assertEqual(["PM25", "WR"], [entity._component for entity in batches[0]])
 
+    def test_setup_keeps_selected_entity_when_measurement_is_missing(self) -> None:
+        cases = (
+            {
+                ("STA1", "PM25"): _metric("PM25", 12.3, "1MW"),
+                ("STA1", "O3"): _metric("O3", None, None),
+            },
+            {("STA1", "PM25"): _metric("PM25", 12.3, "1MW")},
+        )
+
+        for measurements in cases:
+            with self.subTest(measurements=measurements):
+                coordinator = _coordinator(measurements)
+                batches: list[list[MeasurementSensor]] = []
+                hass = types.SimpleNamespace(entity_registry=_registry([]))
+                asyncio.run(
+                    async_setup_entry(
+                        hass,
+                        _entry(
+                            coordinator,
+                            data={"stations": ["STA1"], "measurements": ["PM25", "O3"]},
+                        ),
+                        lambda entities, batches=batches: batches.append(
+                            list(entities)
+                        ),
+                    )
+                )
+
+                self.assertEqual(
+                    ["PM25", "O3"], [entity._component for entity in batches[0]]
+                )
+                ozone = batches[0][1]
+                self.assertFalse(ozone.available)
+                self.assertIsNone(ozone.native_value)
+                self.assertEqual(
+                    {
+                        "district": 1,
+                        "latitude": 48.2,
+                        "longitude": 16.3,
+                    },
+                    ozone.extra_state_attributes,
+                )
+
     def test_setup_disables_and_reenables_registry_entries(self) -> None:
         coordinator = _coordinator({("STA1", "PM25"): _metric("PM25", 12.3, "1MW")})
         registry = _registry(
