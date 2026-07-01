@@ -1,5 +1,8 @@
 # Wiener Luft
 
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange?style=flat)](https://www.hacs.xyz/)
+[![Home Assistant 2026.3+](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-18BCF2?style=flat)](https://www.home-assistant.io/)
+
 Wiener Luft is a community-maintained Home Assistant integration that imports public air-quality and weather measurements from the Vienna Air Quality Monitoring Network (Wiener Luftmessnetz) using open government data published by the City of Vienna (MA 22).
 
 [Home Assistant](https://www.home-assistant.io) is a free and open-source home automation platform that combines data from smart home devices and online services into a single system. This integration adds official air-quality and weather measurements from the City of Vienna, making them available for dashboards, automations, historical analysis, and personalized alerts.
