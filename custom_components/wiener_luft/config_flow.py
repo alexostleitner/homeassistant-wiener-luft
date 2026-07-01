@@ -198,10 +198,9 @@ def _station_defaults(
         return available_codes
 
     selected_codes = set(preferences.get(CONF_STATIONS, ()))
-    return (
-        [code for code in available_codes if code in selected_codes]
-        or available_codes
-    )
+    return [
+        code for code in available_codes if code in selected_codes
+    ] or available_codes
 
 
 def _measurement_defaults(
@@ -229,9 +228,7 @@ def _measurement_defaults(
         allowed_components = selectable_components
 
     return [
-        component
-        for component in MEASUREMENT_SPECS
-        if component in allowed_components
+        component for component in MEASUREMENT_SPECS if component in allowed_components
     ]
 
 
@@ -295,9 +292,7 @@ async def _async_station_step(
     stations = _sorted_stations(flow._integration_data, flow.hass)
     available_codes = [station.code for station, _distance_km in stations]
     description_placeholders = (
-        {"station_count": str(len(available_codes))}
-        if step_id == "user"
-        else None
+        {"station_count": str(len(available_codes))} if step_id == "user" else None
     )
     return flow.async_show_form(
         step_id=step_id,

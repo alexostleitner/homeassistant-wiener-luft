@@ -96,4 +96,4 @@ MEASUREMENT_SPECS: dict[str, MeasurementSpec] = {
     ),
 }
 MEASUREMENT_PRIORITY = ("HMW", "1MW", "MW8", "MW24")
-MISSING_VALUES = frozenset({"", "NE", "-999", "—","---", "⸻"})
+MISSING_VALUES = frozenset({"", "NE", "-999", "—", "---", "⸻"})

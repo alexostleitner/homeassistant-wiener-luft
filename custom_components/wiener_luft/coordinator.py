@@ -49,9 +49,7 @@ class IntegrationData:
     stale_measurements: frozenset[tuple[str, str]] = field(default_factory=frozenset)
 
 
-class IntegrationCoordinator(
-    DataUpdateCoordinator[IntegrationData]
-):
+class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
     """Coordinate data refreshes."""
 
     def __init__(
@@ -74,9 +72,10 @@ class IntegrationCoordinator(
         config_entry = getattr(self, "config_entry", None)
         entry_data = getattr(config_entry, "data", None) if config_entry else None
         if isinstance(entry_data, dict):
-            self.stations = _parse_station_snapshot(
-                entry_data.get(STATION_SNAPSHOT)
-            ) or self.stations
+            self.stations = (
+                _parse_station_snapshot(entry_data.get(STATION_SNAPSHOT))
+                or self.stations
+            )
         await self.async_refresh_stations(force=True)
 
     async def async_refresh_stations(self, force: bool = False) -> bool:
@@ -213,14 +212,11 @@ def _parse_source_snapshot(
     previous_station_codes = set(station_codes)
     previous_measurement_keys = {tuple(item) for item in measurement_keys}
     if any(
-        not isinstance(station_code, str)
-        for station_code in previous_station_codes
+        not isinstance(station_code, str) for station_code in previous_station_codes
     ):
         return None
     if any(
-        len(item) != 2
-        or not isinstance(item[0], str)
-        or not isinstance(item[1], str)
+        len(item) != 2 or not isinstance(item[0], str) or not isinstance(item[1], str)
         for item in previous_measurement_keys
     ):
         return None
@@ -262,10 +258,7 @@ def _source_snapshot(
 def _station_snapshot(stations: dict[str, Station]) -> dict[str, dict[str, object]]:
     """Serialize station metadata for persistence."""
 
-    return {
-        code: asdict(station)
-        for code, station in sorted(stations.items())
-    }
+    return {code: asdict(station) for code, station in sorted(stations.items())}
 
 
 def _parse_station_snapshot(value: object) -> dict[str, Station] | None:

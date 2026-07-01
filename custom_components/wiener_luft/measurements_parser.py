@@ -155,9 +155,7 @@ def _select_row_measurements(
     selected: dict[tuple[str, str], SelectedMetric],
     station_code: str,
     row: list[str],
-    columns_by_component: dict[
-        str, list[tuple[int, str, str, int | None, str | None]]
-    ],
+    columns_by_component: dict[str, list[tuple[int, str, str, int | None, str | None]]],
 ) -> None:
     for component, component_columns in columns_by_component.items():
         chosen_column = _choose_column(row, component_columns)

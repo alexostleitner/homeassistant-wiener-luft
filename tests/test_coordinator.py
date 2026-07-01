@@ -50,9 +50,9 @@ def _make_coordinator() -> IntegrationCoordinator:
     async def async_add_executor_job(func, *args):
         return func(*args)
 
-    async_update_entry = Mock(side_effect=lambda entry, **changes: setattr(
-        entry, "data", changes["data"]
-    ))
+    async_update_entry = Mock(
+        side_effect=lambda entry, **changes: setattr(entry, "data", changes["data"])
+    )
 
     coordinator.hass = types.SimpleNamespace(
         async_add_executor_job=async_add_executor_job,

@@ -67,9 +67,8 @@ def _sync_entity_registry(
     }
     registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if (
-            registry_entry.domain != "sensor"
-            or not registry_entry.unique_id.startswith(f"{DOMAIN}_")
+        if registry_entry.domain != "sensor" or not registry_entry.unique_id.startswith(
+            f"{DOMAIN}_"
         ):
             continue
         if registry_entry.unique_id in selected_unique_ids:
@@ -115,10 +114,7 @@ def _build_entities(
             reading = coordinator.data.measurements.get(entity_key)
             if (
                 spec is None
-                or (
-                    known_entity_keys is not None
-                    and entity_key in known_entity_keys
-                )
+                or (known_entity_keys is not None and entity_key in known_entity_keys)
                 or reading is None
                 or reading.value is None
                 or reading.measurement_type is None
@@ -215,12 +211,10 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             if measurement_spec.device_class is not None
             else None
         )
-        self._attr_state_class = getattr(
-            SensorStateClass, measurement_spec.state_class
-        )
+        self._attr_state_class = getattr(SensorStateClass, measurement_spec.state_class)
         self._attr_icon = measurement_spec.icon
-        self._attr_suggested_display_precision = (
-            DISPLAY_PRECISION_BY_UNIT.get(measurement_spec.unit)
+        self._attr_suggested_display_precision = DISPLAY_PRECISION_BY_UNIT.get(
+            measurement_spec.unit
         )
         self._attr_unique_id = _build_unique_id(station.code, component)
         self._attr_device_info = station_device_info(station)
@@ -290,9 +284,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         if self.coordinator.data is None:
             return False
 
-        wind_speed = self.coordinator.data.measurements.get(
-            (self._station_code, "WG")
-        )
+        wind_speed = self.coordinator.data.measurements.get((self._station_code, "WG"))
         if wind_speed is None or wind_speed.value is None:
             return False
 

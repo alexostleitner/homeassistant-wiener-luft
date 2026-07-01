@@ -65,6 +65,7 @@ def _coordinator(
         return lambda: coordinator._listeners.remove(callback)
 
     coordinator.async_add_listener = async_add_listener
+
     def async_update_listeners() -> None:
         for callback in tuple(coordinator._listeners):
             callback()
@@ -106,8 +107,7 @@ def _registry_entry(
         domain="sensor",
         unique_id=_expected_entity_base(component, station_code),
         disabled_by=disabled_by,
-        entity_id=entity_id
-        or f"sensor.{component.lower()}_{station_code.lower()}",
+        entity_id=entity_id or f"sensor.{component.lower()}_{station_code.lower()}",
         config_entry_id=entry_id,
     )
 
@@ -235,9 +235,7 @@ class MeasurementSensorTest(unittest.TestCase):
 
     def test_sensor_state_logs_interval_change(self) -> None:
         sensor = MeasurementSensor(
-            _coordinator(
-                {("STA1", "PM25"): _metric("PM25", 12.3, "1MW")}
-            ),
+            _coordinator({("STA1", "PM25"): _metric("PM25", 12.3, "1MW")}),
             _station(),
             "PM25",
             MEASUREMENT_SPECS["PM25"],
@@ -283,9 +281,7 @@ class MeasurementSensorTest(unittest.TestCase):
                 )
             )
         )
-        with self.assertNoLogs(
-            "custom_components.wiener_luft.sensor", level="WARNING"
-        ):
+        with self.assertNoLogs("custom_components.wiener_luft.sensor", level="WARNING"):
             sensor.async_write_ha_state()
 
         sensor.coordinator.data = IntegrationData(
@@ -304,9 +300,7 @@ class MeasurementSensorTest(unittest.TestCase):
         sensor.hass.states.get.return_value = types.SimpleNamespace(
             attributes={"unit_of_measurement": "mg/m³"}
         )
-        with self.assertNoLogs(
-            "custom_components.wiener_luft.sensor", level="WARNING"
-        ):
+        with self.assertNoLogs("custom_components.wiener_luft.sensor", level="WARNING"):
             sensor.async_write_ha_state()
 
     def test_entity_identifiers_share_slug_logic(self) -> None:

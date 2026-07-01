@@ -47,11 +47,7 @@ def _hass(
             longitude=longitude,
         ),
         async_add_executor_job=asyncio.to_thread,
-        **(
-            {"config_entries": config_entries}
-            if config_entries is not None
-            else {}
-        ),
+        **({"config_entries": config_entries} if config_entries is not None else {}),
     )
 
 
@@ -218,9 +214,7 @@ class ConfigFlowTest(unittest.TestCase):
                 return_value=measurements,
             ),
         ):
-            result = asyncio.run(
-                flow.async_step_user({"stations": ["STA1", "STA2"]})
-            )
+            result = asyncio.run(flow.async_step_user({"stations": ["STA1", "STA2"]}))
 
         self.assertEqual("measurements", result["step_id"])
         _, default, selector_config = _selector_details(result["data_schema"])

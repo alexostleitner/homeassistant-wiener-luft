@@ -161,13 +161,9 @@ def install_homeassistant_stubs() -> None:
     entity_registry = modules["homeassistant.helpers.entity_registry"]
     entity_registry.RegistryEntryDisabler = _EntityRegistryDisabler
     entity_registry.async_get = lambda hass: hass.entity_registry
-    entity_registry.async_entries_for_config_entry = (
-        lambda registry, config_entry_id: [
-            entry
-            for entry in registry.entries
-            if entry.config_entry_id == config_entry_id
-        ]
-    )
+    entity_registry.async_entries_for_config_entry = lambda registry, config_entry_id: [
+        entry for entry in registry.entries if entry.config_entry_id == config_entry_id
+    ]
     modules["homeassistant.helpers.entity_platform"].AddEntitiesCallback = type(
         "AddEntitiesCallback", (), {}
     )
@@ -179,13 +175,13 @@ def install_homeassistant_stubs() -> None:
         (),
         {"__init__": _coordinator_entity_init},
     )
-    modules["homeassistant.helpers.update_coordinator"].DataUpdateCoordinator = (
-        _DataUpdateCoordinator
-    )
+    modules[
+        "homeassistant.helpers.update_coordinator"
+    ].DataUpdateCoordinator = _DataUpdateCoordinator
     modules["homeassistant.helpers.update_coordinator"].UpdateFailed = type(
         "UpdateFailed", (Exception,), {}
     )
     modules["homeassistant.util.dt"].utcnow = lambda: None
-    modules["homeassistant.util"].slugify = (
-        lambda value: value.lower().replace(" ", "_")
+    modules["homeassistant.util"].slugify = lambda value: value.lower().replace(
+        " ", "_"
     )
