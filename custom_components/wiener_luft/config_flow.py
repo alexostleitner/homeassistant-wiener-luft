@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from functools import cache
+from math import atan2, cos, radians, sin, sqrt
 from pathlib import Path
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.config_entries import UnknownEntry
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN, NAME, SOURCE_SNAPSHOT
@@ -20,6 +22,7 @@ from .coordinator import (
     async_fetch_stations,
 )
 from .measurements import MEASUREMENT_SPECS
+from .station import Station
 
 
 async def _async_load_flow_data(
@@ -85,17 +88,71 @@ def _measurement_counts(
     return counts
 
 
-def _sorted_stations(integration_data: IntegrationData):
-    """Return stable station ordering for the selector."""
+def _station_distance_km(
+    home_latitude: float,
+    home_longitude: float,
+    station: Station,
+) -> float:
+    """Return the distance in km between HA and one station."""
 
-    return sorted(
-        integration_data.stations.values(),
-        key=lambda station: (station.name.casefold(), station.code),
+    earth_radius_km = 6371.0
+    delta_lat = radians(station.latitude - home_latitude)
+    delta_lon = radians(station.longitude - home_longitude)
+    a = (
+        sin(delta_lat / 2) ** 2
+        + cos(radians(home_latitude))
+        * cos(radians(station.latitude))
+        * sin(delta_lon / 2) ** 2
     )
+    a = max(0.0, min(1.0, a))
+    return 2 * earth_radius_km * atan2(sqrt(a), sqrt(1 - a))
+
+
+def _alphabetical_stations(
+    stations: list[Station],
+) -> list[tuple[Station, int | None]]:
+    """Return stations in the existing alphabetical order."""
+
+    return [
+        (station, None)
+        for station in sorted(
+            stations, key=lambda station: (station.name.casefold(), station.code)
+        )
+    ]
+
+
+def _sorted_stations(
+    integration_data: IntegrationData,
+    hass,
+) -> list[tuple[Station, int | None]]:
+    """Return station ordering for the selector."""
+
+    stations = list(integration_data.stations.values())
+    home_config = getattr(hass, "config", None)
+    home_latitude = getattr(home_config, "latitude", None)
+    home_longitude = getattr(home_config, "longitude", None)
+    if home_latitude is None or home_longitude is None:
+        return _alphabetical_stations(stations)
+
+    ranked_stations: list[tuple[float, Station]] = []
+    for station in stations:
+        if station.latitude is None or station.longitude is None:
+            return _alphabetical_stations(stations)
+        ranked_stations.append(
+            (
+                _station_distance_km(home_latitude, home_longitude, station),
+                station,
+            )
+        )
+
+    ranked_stations.sort(
+        key=lambda item: (item[0], item[1].name.casefold(), item[1].code)
+    )
+    return [(station, round(distance_km)) for distance_km, station in ranked_stations]
 
 
 def _station_schema(
-    stations,
+    stations: list[tuple[Station, int | None]],
     defaults: list[str],
 ) -> vol.Schema:
     """Build the station selection schema."""
@@ -103,9 +160,13 @@ def _station_schema(
     options = [
         {
             "value": station.code,
-            "label": station.name,
+            "label": (
+                station.name
+                if distance_km is None
+                else f"{station.name} ({distance_km} km)"
+            ),
         }
-        for station in stations
+        for station, distance_km in stations
     ]
     return vol.Schema(
         {
@@ -119,6 +180,8 @@ def _station_schema(
 def _station_defaults(
     available_codes: list[str],
     preferences: Mapping[str, object] | None = None,
+    *,
+    recommended_count: int | None = None,
 ) -> list[str]:
     """Return defaults for the station selection."""
 
@@ -127,6 +190,8 @@ def _station_defaults(
         or CONF_STATIONS not in preferences
         or CONF_MEASUREMENTS not in preferences
     ):
+        if recommended_count is not None:
+            return available_codes[:recommended_count]
         return available_codes
 
     selected_codes = set(preferences.get(CONF_STATIONS, ()))
@@ -224,14 +289,26 @@ async def _async_station_step(
         errors["base"] = "station_required"
 
     assert flow._integration_data is not None
-    stations = _sorted_stations(flow._integration_data)
-    available_codes = [station.code for station in stations]
+    stations = _sorted_stations(flow._integration_data, flow.hass)
+    available_codes = [station.code for station, _distance_km in stations]
+    description_placeholders = (
+        {"station_count": str(len(available_codes))}
+        if step_id == "user"
+        else None
+    )
     return flow.async_show_form(
         step_id=step_id,
         data_schema=_station_schema(
             stations,
-            _station_defaults(available_codes, preferences),
+            _station_defaults(
+                available_codes,
+                preferences,
+                recommended_count=(
+                    5 if stations and stations[0][1] is not None else None
+                ),
+            ),
         ),
+        description_placeholders=description_placeholders,
         errors=errors,
     )
 
@@ -282,6 +359,27 @@ async def _async_measurement_step(
     )
 
 
+async def _async_reload_config_entry(flow) -> None:
+    """Reload an options entry if it still exists."""
+
+    config_entry = getattr(flow, "config_entry", None)
+    if config_entry is None:
+        return
+
+    hass = getattr(flow, "hass", None)
+    config_entries = getattr(hass, "config_entries", None) if hass else None
+    async_reload = (
+        getattr(config_entries, "async_reload", None) if config_entries else None
+    )
+    if async_reload is None:
+        return
+
+    try:
+        await async_reload(config_entry.entry_id)
+    except UnknownEntry:
+        return
+
+
 class IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle setup via the UI."""
 
@@ -319,7 +417,7 @@ class IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
 
-class IntegrationOptionsFlow(config_entries.OptionsFlowWithReload):
+class IntegrationOptionsFlow(config_entries.OptionsFlow):
     """Handle options for an existing config entry."""
 
     def __init__(self) -> None:
@@ -348,8 +446,11 @@ class IntegrationOptionsFlow(config_entries.OptionsFlowWithReload):
 
         preferences = dict(self.config_entry.data)
         preferences.update(self.config_entry.options)
-        return await _async_measurement_step(
+        result = await _async_measurement_step(
             self,
             user_input,
             preferences=preferences,
         )
+        if result["type"] == "create_entry":
+            await _async_reload_config_entry(self)
+        return result

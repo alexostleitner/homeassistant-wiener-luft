@@ -23,7 +23,7 @@
         "data": {
           "stations": "Messstationen"
         },
-        "description": "Wähle die Messstationen aus, die in Home Assistant angelegt werden sollen.",
+        "description": "Wähle die Messstationen aus, die in Home Assistant eingebunden werden sollen. Falls ein Home-Assistant-Standort verfügbar ist, sind sie nach der Entfernung sortiert. Die fünf nächstgelegenen sind bereits vorausgewählt. Insgesamt stehen {station_count} Stationen zur Auswahl.",
         "title": "Messstationen auswählen"
       }
     }

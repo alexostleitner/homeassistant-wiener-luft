@@ -23,7 +23,7 @@
         "data": {
           "stations": "Monitoring stations"
         },
-        "description": "Select the monitoring stations that should be created in Home Assistant.",
+        "description": "Select the monitoring stations to include in Home Assistant. If a Home Assistant location is available, they are ordered by distance. The five nearest stations are preselected. A total of {station_count} stations are available.",
         "title": "Select monitoring stations"
       }
     }

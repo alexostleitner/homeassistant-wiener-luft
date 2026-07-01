@@ -151,6 +151,9 @@ def install_homeassistant_stubs() -> None:
     modules["homeassistant.config_entries"].OptionsFlow = _OptionsFlow
     modules["homeassistant.config_entries"].OptionsFlowWithReload = _OptionsFlow
     modules["homeassistant.config_entries"].ConfigEntry = type("ConfigEntry", (), {})
+    modules["homeassistant.config_entries"].UnknownEntry = type(
+        "UnknownEntry", (Exception,), {}
+    )
     modules["homeassistant.core"].HomeAssistant = type("HomeAssistant", (), {})
     modules["homeassistant.helpers.device_registry"].DeviceInfo = type(
         "DeviceInfo", (dict,), {}
