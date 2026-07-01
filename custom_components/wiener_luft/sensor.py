@@ -233,10 +233,15 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return station_state_attributes(self._current_station)
+        attributes = station_state_attributes(self._current_station)
+        reading = self._reading
+        if reading is not None and reading.measurement_type is not None:
+            attributes["interval"] = reading.measurement_type
+        return attributes
 
     def async_write_ha_state(self) -> None:
         self._log_unit_change()
+        self._log_interval_change()
         super().async_write_ha_state()
 
     @property
@@ -309,4 +314,31 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             entity_id,
             previous_unit,
             current_unit,
+        )
+
+    def _log_interval_change(self) -> None:
+        hass = getattr(self, "hass", None)
+        entity_id = getattr(self, "entity_id", None)
+        reading = self._reading
+        if hass is None or entity_id is None or reading is None:
+            return
+
+        old_state = hass.states.get(entity_id)
+        if old_state is None:
+            return
+
+        previous_interval = old_state.attributes.get("interval")
+        current_interval = reading.measurement_type
+        if (
+            previous_interval is None
+            or current_interval is None
+            or previous_interval == current_interval
+        ):
+            return
+
+        LOGGER.warning(
+            "Interval for %s changed from %s to %s",
+            entity_id,
+            previous_interval,
+            current_interval,
         )

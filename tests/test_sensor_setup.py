@@ -158,6 +158,7 @@ class MeasurementSensorTest(unittest.TestCase):
                 "district": 1,
                 "latitude": 48.2,
                 "longitude": 16.3,
+                "interval": "HMW",
             },
             sensor.extra_state_attributes,
         )
@@ -231,6 +232,34 @@ class MeasurementSensorTest(unittest.TestCase):
 
                 self.assertTrue(sensor.available)
                 self.assertEqual(expected_value, sensor.native_value)
+
+    def test_sensor_state_logs_interval_change(self) -> None:
+        sensor = MeasurementSensor(
+            _coordinator(
+                {("STA1", "PM25"): _metric("PM25", 12.3, "1MW")}
+            ),
+            _station(),
+            "PM25",
+            MEASUREMENT_SPECS["PM25"],
+        )
+        sensor.entity_id = "sensor.pm25_sta1"
+        sensor.hass = types.SimpleNamespace(
+            states={
+                "sensor.pm25_sta1": types.SimpleNamespace(
+                    attributes={"interval": "HMW", "unit_of_measurement": "μg/m³"}
+                )
+            }
+        )
+
+        with self.assertLogs(
+            "custom_components.wiener_luft.sensor", level="WARNING"
+        ) as logs:
+            sensor.async_write_ha_state()
+
+        self.assertIn(
+            "Interval for sensor.pm25_sta1 changed from HMW to 1MW",
+            logs.output[0],
+        )
 
     def test_unit_change_warns_once_per_new_state(self) -> None:
         station = _station()
