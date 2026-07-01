@@ -506,7 +506,7 @@ class SensorSetupTest(unittest.TestCase):
 
         self.assertEqual(["PM25", "WR"], [entity._component for entity in batches[0]])
 
-    def test_setup_keeps_selected_entity_when_measurement_is_missing(self) -> None:
+    def test_setup_skips_missing_selected_measurements(self) -> None:
         cases = (
             {
                 ("STA1", "PM25"): _metric("PM25", 12.3, "1MW"),
@@ -533,20 +533,7 @@ class SensorSetupTest(unittest.TestCase):
                     )
                 )
 
-                self.assertEqual(
-                    ["PM25", "O3"], [entity._component for entity in batches[0]]
-                )
-                ozone = batches[0][1]
-                self.assertFalse(ozone.available)
-                self.assertIsNone(ozone.native_value)
-                self.assertEqual(
-                    {
-                        "district": 1,
-                        "latitude": 48.2,
-                        "longitude": 16.3,
-                    },
-                    ozone.extra_state_attributes,
-                )
+                self.assertEqual(["PM25"], [entity._component for entity in batches[0]])
 
     def test_setup_disables_and_reenables_registry_entries(self) -> None:
         coordinator = _coordinator({("STA1", "PM25"): _metric("PM25", 12.3, "1MW")})

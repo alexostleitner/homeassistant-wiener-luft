@@ -95,9 +95,6 @@ def _build_entities(
     if coordinator.data is None:
         return []
 
-    explicit_selection = (
-        selected_stations is not None and selected_measurements is not None
-    )
     entities: list[MeasurementSensor] = []
     for station_code, station in coordinator.data.stations.items():
         if selected_stations is not None and station_code not in selected_stations:
@@ -109,7 +106,7 @@ def _build_entities(
                 for component in MEASUREMENT_SPECS
                 if component in selected_measurements
             )
-            if explicit_selection
+            if selected_measurements is not None
             else MEASUREMENT_SPECS.keys()
         )
         for component in components:
@@ -122,14 +119,9 @@ def _build_entities(
                     known_entity_keys is not None
                     and entity_key in known_entity_keys
                 )
-                or (
-                    not explicit_selection
-                    and (
-                        reading is None
-                        or reading.value is None
-                        or reading.measurement_type is None
-                    )
-                )
+                or reading is None
+                or reading.value is None
+                or reading.measurement_type is None
             ):
                 continue
 
