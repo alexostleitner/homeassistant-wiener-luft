@@ -6,6 +6,7 @@ DOMAIN = "wiener_luft"
 NAME = "Wiener Luft"
 CONF_STATIONS = "stations"
 CONF_MEASUREMENTS = "measurements"
+SOURCE_SNAPSHOT = "_source_snapshot"
 
 PLATFORMS = [Platform.SENSOR]
 

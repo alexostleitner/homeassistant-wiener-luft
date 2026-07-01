@@ -20,6 +20,9 @@ from custom_components.wiener_luft.coordinator import (  # noqa: E402
     IntegrationCoordinator,
     IntegrationData,
 )
+from custom_components.wiener_luft.measurements_parser import (  # noqa: E402
+    SelectedMetric,
+)
 from custom_components.wiener_luft.station import Station  # noqa: E402
 
 FIXTURE_DIR = Path(__file__).with_name("fixtures")
@@ -52,6 +55,7 @@ def _make_coordinator() -> IntegrationCoordinator:
     )
     coordinator.stations = {}
     coordinator._stations_last_refresh_attempt = None
+    coordinator.config_entry = types.SimpleNamespace(data={}, options={})
     return coordinator
 
 
@@ -167,6 +171,114 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("STA3", {key[0] for key in data.measurements})
         self.assertEqual(2, urlopen_mock.call_count)
+
+    def test_log_new_source_items_uses_saved_snapshot(self) -> None:
+        coordinator = _make_coordinator()
+        station_alpha = Station(
+            code="STA1",
+            name="Station Alpha",
+            district=3,
+            latitude=48.21,
+            longitude=16.31,
+            station_url=None,
+        )
+        station_beta = Station(
+            code="STA2",
+            name="Station Beta",
+            district=4,
+            latitude=48.22,
+            longitude=16.32,
+            station_url=None,
+        )
+        base_stations = {"STA1": station_alpha, "STA2": station_beta}
+        base_measurements = {
+            ("STA1", "PM25"): SelectedMetric(12.3, "μg/m³", "1MW", NOW),
+            ("STA2", "O3"): SelectedMetric(4.5, "μg/m³", "HMW", NOW),
+        }
+        new_station = Station(
+            code="STA3",
+            name="Station Gamma",
+            district=5,
+            latitude=48.23,
+            longitude=16.33,
+            station_url=None,
+        )
+        expanded_stations = {**base_stations, "STA3": new_station}
+        expanded_measurements = {
+            **base_measurements,
+            ("STA3", "PM25"): SelectedMetric(3.2, "μg/m³", "1MW", NOW),
+            ("STA1", "O3"): SelectedMetric(6.7, "μg/m³", "HMW", NOW),
+        }
+        coordinator.stations = expanded_stations
+        coordinator.config_entry.data = {
+            coordinator_module.SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
+                base_stations, base_measurements
+            )
+        }
+        coordinator.config_entry.options = {}
+
+        with self.assertLogs(coordinator_module.LOGGER.name, level="INFO") as logs:
+            coordinator._log_new_source_items(expanded_measurements)
+        with self.assertLogs(coordinator_module.LOGGER.name, level="INFO") as logs2:
+            coordinator._log_new_source_items(expanded_measurements)
+
+        coordinator.config_entry.options = {
+            coordinator_module.SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
+                expanded_stations, expanded_measurements
+            )
+        }
+        with self.assertNoLogs(coordinator_module.LOGGER.name, level="INFO"):
+            coordinator._log_new_source_items(expanded_measurements)
+
+        self.assertIn("1 new station(s)", logs.output[0])
+        self.assertIn("2 new station/measurement combination(s)", logs.output[0])
+        self.assertIn("1 new station(s)", logs2.output[0])
+        self.assertIn("2 new station/measurement combination(s)", logs2.output[0])
+
+    async def test_update_data_changes_when_measurements_turn_stale(self) -> None:
+        coordinator = _make_coordinator()
+        first_poll = datetime(2026, 6, 24, 21, 30, tzinfo=UTC)
+        second_poll = datetime(2026, 6, 24, 22, 0, tzinfo=UTC)
+        third_poll = datetime(2026, 6, 24, 23, 0, tzinfo=UTC)
+
+        with (
+            patch.object(
+                coordinator_module,
+                "urlopen",
+                side_effect=[
+                    _Response(STATION_PAYLOAD),
+                    _Response(LUMES_FIXTURE.read_bytes()),
+                    _Response(LUMES_FIXTURE.read_bytes()),
+                    _Response(LUMES_FIXTURE.read_bytes()),
+                ],
+            ),
+            patch.object(
+                coordinator_module.dt_util,
+                "utcnow",
+                side_effect=[
+                    first_poll,
+                    first_poll,
+                    second_poll,
+                    second_poll,
+                    third_poll,
+                    third_poll,
+                ],
+            ),
+        ):
+            first = await coordinator._async_update_data()
+            second = await coordinator._async_update_data()
+            third = await coordinator._async_update_data()
+
+        self.assertEqual(first, second)
+        self.assertNotEqual(first, third)
+        self.assertEqual(
+            frozenset(
+                key
+                for key, reading in third.measurements.items()
+                if reading.measured_at is not None
+            ),
+            third.stale_measurements,
+        )
 
     async def test_update_data_raises_when_measurement_fetch_fails(self) -> None:
         coordinator = _make_coordinator()

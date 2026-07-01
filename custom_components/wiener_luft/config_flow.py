@@ -11,10 +11,11 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
-from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN, NAME
+from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN, NAME, SOURCE_SNAPSHOT
 from .coordinator import (
     FlowFetchError,
     IntegrationData,
+    _source_snapshot,
     async_fetch_measurements,
     async_fetch_stations,
 )
@@ -255,6 +256,10 @@ async def _async_measurement_step(
             entry_data = {
                 CONF_STATIONS: flow._selected_station_codes,
                 CONF_MEASUREMENTS: selected_measurements,
+                SOURCE_SNAPSHOT: _source_snapshot(
+                    flow._integration_data.stations,
+                    flow._integration_data.measurements,
+                ),
             }
             if title is None:
                 return flow.async_create_entry(data=entry_data)

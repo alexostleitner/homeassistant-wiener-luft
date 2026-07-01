@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import unicodedata
-from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -17,7 +16,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
 from .const import (
@@ -25,7 +23,6 @@ from .const import (
     CONF_MEASUREMENTS,
     CONF_STATIONS,
     DOMAIN,
-    STALE_AFTER,
 )
 from .coordinator import IntegrationCoordinator
 from .measurements import (
@@ -41,7 +38,6 @@ from .station import (
 )
 
 LOGGER = logging.getLogger(__name__)
-StateToken = tuple[str, datetime | None, float | None, str, Station]
 
 
 def _build_unique_id(station_code: str, component: str) -> str:
@@ -216,7 +212,6 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         )
         self._attr_unique_id = _build_unique_id(station.code, component)
         self._attr_device_info = station_device_info(station)
-        self._last_written_token = self._state_token
 
     @property
     def available(self) -> bool:
@@ -244,14 +239,6 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         self._log_unit_change()
         super().async_write_ha_state()
 
-    def _handle_coordinator_update(self) -> None:
-        state_token = self._state_token
-        if state_token == self._last_written_token:
-            return
-
-        self._last_written_token = state_token
-        self.async_write_ha_state()
-
     @property
     def _reading(self) -> SelectedMetric | None:
         if self.coordinator.data is None:
@@ -273,20 +260,13 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             return "coordinator_unavailable"
         if reading is None or reading.value is None:
             return "missing"
-        if self._is_stale(reading):
+        if (
+            self.coordinator.data is not None
+            and (self._station_code, self._component)
+            in self.coordinator.data.stale_measurements
+        ):
             return "stale"
         return "available"
-
-    @property
-    def _state_token(self) -> StateToken:
-        reading = self._reading
-        return (
-            self._availability_state,
-            None if reading is None else reading.measured_at,
-            self.native_value,
-            self.native_unit_of_measurement,
-            self._current_station,
-        )
 
     @property
     def _wind_speed_is_calm(self) -> bool:
@@ -304,15 +284,6 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         if wind_speed.unit == "km/h":
             return wind_speed.value / 3.6 < CALM_WIND_SPEED_MPS
         return False
-
-    def _is_stale(self, reading: SelectedMetric) -> bool:
-        measured_at = reading.measured_at
-        if measured_at is None:
-            return False
-        now = dt_util.utcnow()
-        if now is None:
-            return False
-        return now - measured_at > STALE_AFTER
 
     def _log_unit_change(self) -> None:
         hass = getattr(self, "hass", None)

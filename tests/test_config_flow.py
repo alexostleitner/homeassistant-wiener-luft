@@ -22,6 +22,7 @@ from custom_components.wiener_luft import (  # noqa: E402
 )
 from custom_components.wiener_luft.const import (  # noqa: E402
     MEASUREMENTS_URL,
+    SOURCE_SNAPSHOT,
     STATIONS_URL,
 )
 from custom_components.wiener_luft.measurements_parser import (  # noqa: E402
@@ -143,6 +144,7 @@ class ConfigFlowTest(unittest.TestCase):
             ],
             selector_config["options"][:2],
         )
+
     def test_measurement_step_creates_entry(self) -> None:
         flow = config_flow_module.IntegrationConfigFlow()
         flow.hass = _hass()
@@ -166,7 +168,13 @@ class ConfigFlowTest(unittest.TestCase):
 
         self.assertEqual("create_entry", result["type"])
         self.assertEqual(
-            {"stations": ["STA1"], "measurements": ["PM25"]},
+            {
+                "stations": ["STA1"],
+                "measurements": ["PM25"],
+                SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
+                    stations, measurements
+                ),
+            },
             result["data"],
         )
 
@@ -197,6 +205,44 @@ class OptionsFlowTest(unittest.TestCase):
 
         _, default, _selector_config = _selector_details(result["data_schema"])
         self.assertEqual(["STA1"], default)
+
+    def test_measurement_step_persists_snapshot_in_options(self) -> None:
+        config_entry = types.SimpleNamespace(
+            data=MappingProxyType({"stations": ["STA1"], "measurements": ["PM25"]}),
+            options=MappingProxyType({}),
+        )
+        flow = config_flow_module.IntegrationOptionsFlow()
+        flow._config_entry = config_entry
+        flow.hass = _hass()
+        stations = {"STA1": _station("STA1", "Alpha")}
+        measurements = {("STA1", "PM25"): _metric(12.3, "1MW")}
+
+        with (
+            patch.object(
+                config_flow_module, "async_fetch_stations", return_value=stations
+            ),
+            patch.object(
+                config_flow_module,
+                "async_fetch_measurements",
+                return_value=measurements,
+            ),
+        ):
+            asyncio.run(flow.async_step_init({"stations": ["STA1"]}))
+            result = asyncio.run(
+                flow.async_step_measurements({"measurements": ["PM25"]})
+            )
+
+        self.assertEqual("create_entry", result["type"])
+        self.assertEqual(
+            {
+                "stations": ["STA1"],
+                "measurements": ["PM25"],
+                SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
+                    stations, measurements
+                ),
+            },
+            result["data"],
+        )
 
     def test_fetch_payload_raises_connect_error(self) -> None:
         with (

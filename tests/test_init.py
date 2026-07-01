@@ -21,13 +21,14 @@ class IntegrationSetupTest(unittest.IsolatedAsyncioTestCase):
             coordinator.refreshed = True
 
         coordinator.async_config_entry_first_refresh = first_refresh
+        coordinator.data = types.SimpleNamespace(stations={}, measurements={})
         hass = types.SimpleNamespace(
             config_entries=types.SimpleNamespace(
                 async_forward_entry_setups=AsyncMock(return_value=True),
                 async_unload_platforms=AsyncMock(return_value=True),
             )
         )
-        entry = types.SimpleNamespace(runtime_data=None)
+        entry = types.SimpleNamespace(runtime_data=None, data={}, options={})
 
         with patch.object(
             integration_module,
