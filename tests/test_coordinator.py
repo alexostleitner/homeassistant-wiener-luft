@@ -7,7 +7,7 @@ import types
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from homeassistant_stubs import install_homeassistant_stubs
 
@@ -50,12 +50,18 @@ def _make_coordinator() -> IntegrationCoordinator:
     async def async_add_executor_job(func, *args):
         return func(*args)
 
+    async_update_entry = Mock(side_effect=lambda entry, **changes: setattr(
+        entry, "data", changes["data"]
+    ))
+
     coordinator.hass = types.SimpleNamespace(
-        async_add_executor_job=async_add_executor_job
+        async_add_executor_job=async_add_executor_job,
+        config_entries=types.SimpleNamespace(async_update_entry=async_update_entry),
     )
     coordinator.stations = {}
     coordinator._stations_last_refresh_attempt = None
     coordinator.config_entry = types.SimpleNamespace(data={}, options={})
+    coordinator._async_update_entry = async_update_entry
     return coordinator
 
 
@@ -146,6 +152,56 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(refreshed)
         self.assertEqual({"STA1"}, set(coordinator.stations))
+
+    async def test_refresh_stations_persists_station_snapshot(self) -> None:
+        coordinator = _make_coordinator()
+
+        with (
+            patch.object(
+                coordinator_module,
+                "urlopen",
+                return_value=_Response(STATION_PAYLOAD),
+            ),
+            patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
+        ):
+            refreshed = await coordinator.async_refresh_stations(force=True)
+
+        self.assertTrue(refreshed)
+        self.assertEqual(
+            coordinator_module._station_snapshot(coordinator.stations),
+            coordinator.config_entry.data[coordinator_module.STATION_SNAPSHOT],
+        )
+        coordinator._async_update_entry.assert_called_once()
+
+    async def test_async_setup_loads_cached_station_snapshot(self) -> None:
+        coordinator = _make_coordinator()
+        cached_stations = {
+            "STA1": Station(
+                code="STA1",
+                name="Station Alpha",
+                district=3,
+                latitude=48.21,
+                longitude=16.31,
+                station_url="https://example.test/stations/sta1",
+            )
+        }
+        coordinator.config_entry.data = {
+            coordinator_module.STATION_SNAPSHOT: coordinator_module._station_snapshot(
+                cached_stations
+            )
+        }
+
+        with (
+            patch.object(
+                coordinator_module,
+                "urlopen",
+                side_effect=RuntimeError("network down"),
+            ),
+            patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
+        ):
+            await coordinator._async_setup()
+
+        self.assertEqual(cached_stations, coordinator.stations)
 
     async def test_update_data_logs_unknown_station_codes(self) -> None:
         coordinator = _make_coordinator()

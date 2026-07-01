@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
@@ -20,6 +20,7 @@ from .const import (
     NAME,
     SOURCE_SNAPSHOT,
     STALE_AFTER,
+    STATION_SNAPSHOT,
     STATION_UPDATE_INTERVAL,
     STATIONS_URL,
 )
@@ -70,6 +71,12 @@ class IntegrationCoordinator(
     async def _async_setup(self) -> None:
         """Load station metadata before the first measurement update."""
 
+        config_entry = getattr(self, "config_entry", None)
+        entry_data = getattr(config_entry, "data", None) if config_entry else None
+        if isinstance(entry_data, dict):
+            self.stations = _parse_station_snapshot(
+                entry_data.get(STATION_SNAPSHOT)
+            ) or self.stations
         await self.async_refresh_stations(force=True)
 
     async def async_refresh_stations(self, force: bool = False) -> bool:
@@ -91,6 +98,20 @@ class IntegrationCoordinator(
                 raise UpdateFailed("Could not load station metadata") from err
             LOGGER.warning("Could not refresh station metadata; keeping cached data")
             return False
+        config_entry = getattr(self, "config_entry", None)
+        hass = getattr(self, "hass", None)
+        config_entries = getattr(hass, "config_entries", None) if hass else None
+        if (
+            config_entry is not None
+            and config_entries is not None
+            and hasattr(config_entries, "async_update_entry")
+        ):
+            entry_data = getattr(config_entry, "data", None)
+            data = dict(entry_data) if entry_data is not None else {}
+            snapshot = _station_snapshot(self.stations)
+            if data.get(STATION_SNAPSHOT) != snapshot:
+                data[STATION_SNAPSHOT] = snapshot
+                config_entries.async_update_entry(config_entry, data=data)
         return True
 
     async def _async_update_data(self) -> IntegrationData:
@@ -230,6 +251,63 @@ def _source_snapshot(
         "station_codes": sorted(station_codes),
         "measurement_keys": [list(item) for item in sorted(measurement_keys)],
     }
+
+
+def _station_snapshot(stations: dict[str, Station]) -> dict[str, dict[str, object]]:
+    """Serialize station metadata for persistence."""
+
+    return {
+        code: asdict(station)
+        for code, station in sorted(stations.items())
+    }
+
+
+def _parse_station_snapshot(value: object) -> dict[str, Station] | None:
+    """Parse a persisted station snapshot."""
+
+    if not isinstance(value, dict):
+        return None
+
+    stations: dict[str, Station] = {}
+    for code, station_data in value.items():
+        station = _parse_station_snapshot_item(code, station_data)
+        if station is None:
+            return None
+        stations[code] = station
+    return stations
+
+
+def _parse_station_snapshot_item(code: object, value: object) -> Station | None:
+    """Parse one persisted station entry."""
+
+    if not isinstance(code, str) or not isinstance(value, dict):
+        return None
+
+    stored_code = value.get("code", code)
+    name = value.get("name")
+    district = value.get("district")
+    latitude = value.get("latitude")
+    longitude = value.get("longitude")
+    station_url = value.get("station_url")
+    if stored_code != code or not isinstance(name, str):
+        return None
+    if district is not None and not isinstance(district, int):
+        return None
+    if latitude is not None and not isinstance(latitude, (int, float)):
+        return None
+    if longitude is not None and not isinstance(longitude, (int, float)):
+        return None
+    if station_url is not None and not isinstance(station_url, str):
+        return None
+
+    return Station(
+        code=code,
+        name=name,
+        district=district,
+        latitude=float(latitude) if latitude is not None else None,
+        longitude=float(longitude) if longitude is not None else None,
+        station_url=station_url,
+    )
 
 
 def _fetch_payload(url: str) -> bytes:
