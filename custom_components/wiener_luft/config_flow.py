@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Mapping
 from functools import cache
 from math import atan2, cos, radians, sin, sqrt
@@ -23,6 +24,8 @@ from .coordinator import (
 )
 from .measurements import MEASUREMENT_SPECS
 from .station import Station
+
+LOGGER = logging.getLogger(__name__)
 
 
 async def _async_load_flow_data(
@@ -374,10 +377,19 @@ async def _async_reload_config_entry(flow) -> None:
     if async_reload is None:
         return
 
+    LOGGER.debug("Reloading config entry %s after options save", config_entry.entry_id)
     try:
         await async_reload(config_entry.entry_id)
     except UnknownEntry:
+        LOGGER.debug(
+            "Skipping reload for missing config entry %s after options save",
+            config_entry.entry_id,
+        )
         return
+    LOGGER.debug(
+        "Finished reloading config entry %s after options save",
+        config_entry.entry_id,
+    )
 
 
 class IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -452,5 +464,9 @@ class IntegrationOptionsFlow(config_entries.OptionsFlow):
             preferences=preferences,
         )
         if result["type"] == "create_entry":
+            LOGGER.debug(
+                "Options flow created entry %s; reloading it",
+                self.config_entry.entry_id,
+            )
             await _async_reload_config_entry(self)
         return result

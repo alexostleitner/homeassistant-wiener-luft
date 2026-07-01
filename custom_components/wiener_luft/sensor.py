@@ -145,6 +145,12 @@ async def async_setup_entry(
     else:
         selected_stations = None
         selected_measurements = None
+    LOGGER.debug(
+        "Starting sensor setup for entry %s (stations=%s, measurements=%s)",
+        entry.entry_id,
+        selected_stations,
+        selected_measurements,
+    )
     _sync_entity_registry(hass, entry, selected_stations, selected_measurements)
     entities = _build_entities(
         coordinator,
@@ -171,7 +177,16 @@ async def async_setup_entry(
         )
         async_add_entities(new_entities)
 
-    entry.async_on_unload(coordinator.async_add_listener(async_add_new_entities))
+    LOGGER.debug(
+        "Registering coordinator listener for entry %s",
+        entry.entry_id,
+    )
+    remove_listener = coordinator.async_add_listener(async_add_new_entities)
+    LOGGER.debug(
+        "Registered coordinator listener for entry %s",
+        entry.entry_id,
+    )
+    entry.async_on_unload(remove_listener)
 
 
 class MeasurementSensor(CoordinatorEntity, SensorEntity):

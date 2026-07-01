@@ -110,6 +110,12 @@ class IntegrationCoordinator(
             data = dict(entry_data) if entry_data is not None else {}
             snapshot = _station_snapshot(self.stations)
             if data.get(STATION_SNAPSHOT) != snapshot:
+                LOGGER.debug(
+                    "Persisting station snapshot for entry %s (state=%s, listeners=%s)",
+                    getattr(config_entry, "entry_id", None),
+                    getattr(config_entry, "state", None),
+                    len(getattr(config_entry, "update_listeners", []) or []),
+                )
                 data[STATION_SNAPSHOT] = snapshot
                 config_entries.async_update_entry(config_entry, data=data)
         return True

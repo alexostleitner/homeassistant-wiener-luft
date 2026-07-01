@@ -345,9 +345,7 @@ class OptionsFlowTest(unittest.TestCase):
         )
         config_entries = types.SimpleNamespace(
             async_reload=AsyncMock(
-                side_effect=config_flow_module.config_entries.UnknownEntry(
-                    "removed"
-                )
+                side_effect=config_flow_module.UnknownEntry("removed")
             )
         )
         flow = config_flow_module.IntegrationOptionsFlow()
