@@ -6,7 +6,7 @@ import types
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from homeassistant_stubs import install_homeassistant_stubs
+from homeassistant_stubs import install_homeassistant_stubs, make_entry, make_hass
 
 install_homeassistant_stubs()
 
@@ -22,13 +22,13 @@ class IntegrationSetupTest(unittest.IsolatedAsyncioTestCase):
 
         coordinator.async_config_entry_first_refresh = first_refresh
         coordinator.data = types.SimpleNamespace(stations={}, measurements={})
-        hass = types.SimpleNamespace(
+        hass = make_hass(
             config_entries=types.SimpleNamespace(
                 async_forward_entry_setups=AsyncMock(return_value=True),
                 async_unload_platforms=AsyncMock(return_value=True),
             )
         )
-        entry = types.SimpleNamespace(runtime_data=None, data={}, options={})
+        entry = make_entry()
 
         with patch.object(
             integration_module,
