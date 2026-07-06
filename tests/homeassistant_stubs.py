@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import types
 from types import ModuleType
 from typing import Any
 
@@ -63,7 +64,8 @@ class _DataUpdateCoordinator:
         name=None,
         update_interval=None,
         config_entry=None,
-    ):
+        **_kwargs,
+    ) -> None:
         self.hass = hass
         self.logger = logger
         self.name = name
@@ -78,13 +80,17 @@ class _DataUpdateCoordinator:
         return lambda: self._listeners.remove(callback)
 
 
-class _SelectSelector:
-    def __init__(self, config):
-        self.config = config
+async def _async_add_executor_job(func, *args):
+    return func(*args)
 
 
 class _EntityRegistryDisabler:
     INTEGRATION = "integration"
+
+
+class _SelectSelector:
+    def __init__(self, config):
+        self.config = config
 
 
 def install_homeassistant_stubs() -> None:
@@ -114,10 +120,9 @@ def install_homeassistant_stubs() -> None:
     for name in ("homeassistant", "homeassistant.components", "homeassistant.helpers"):
         modules[name].__path__ = []  # type: ignore[attr-defined]
 
-    const = modules["homeassistant.const"]
-    const.ATTR_LATITUDE = "latitude"
-    const.ATTR_LONGITUDE = "longitude"
-    const.Platform = type("Platform", (), {"SENSOR": "sensor"})
+    modules["homeassistant.const"].ATTR_LATITUDE = "latitude"
+    modules["homeassistant.const"].ATTR_LONGITUDE = "longitude"
+    modules["homeassistant.const"].Platform = type("Platform", (), {"SENSOR": "sensor"})
 
     def _sensor_entity_async_write_ha_state(self) -> None:
         return None
@@ -185,3 +190,142 @@ def install_homeassistant_stubs() -> None:
     modules["homeassistant.util"].slugify = lambda value: value.lower().replace(
         " ", "_"
     )
+
+
+def make_hass(
+    *,
+    language: str = "en",
+    latitude: float | None = None,
+    longitude: float | None = None,
+    config_entries=None,
+    entity_registry=None,
+    states=None,
+):
+    hass = types.SimpleNamespace(
+        async_add_executor_job=_async_add_executor_job,
+        config=types.SimpleNamespace(
+            language=language,
+            latitude=latitude,
+            longitude=longitude,
+        ),
+    )
+    if config_entries is not None:
+        hass.config_entries = config_entries
+    if entity_registry is not None:
+        hass.entity_registry = entity_registry
+    if states is not None:
+        hass.states = states
+    return hass
+
+
+def make_entry(
+    *,
+    data=None,
+    options=None,
+    entry_id: str = "entry-1",
+    runtime_data=None,
+):
+    return types.SimpleNamespace(
+        runtime_data=runtime_data,
+        data={} if data is None else data,
+        options={} if options is None else options,
+        entry_id=entry_id,
+        async_on_unload=lambda func: func,
+    )
+
+
+def make_station(
+    code: str = "STA1",
+    name: str = "Station 1",
+    *,
+    district: int | None = 1,
+    latitude: float | None = 48.2,
+    longitude: float | None = 16.3,
+    station_url: str | None = None,
+):
+    from custom_components.wiener_luft.station import Station
+
+    return Station(code, name, district, latitude, longitude, station_url)
+
+
+def make_metric(
+    value: float | None,
+    measurement_type: str | None,
+    *,
+    unit: str = "μg/m³",
+    measured_at=None,
+):
+    from custom_components.wiener_luft.measurements_parser import SelectedMetric
+
+    return SelectedMetric(value, unit, measurement_type, measured_at)
+
+
+def make_data(
+    measurements,
+    *,
+    station=None,
+    stale_measurements: tuple[tuple[str, str], ...] = (),
+):
+    from custom_components.wiener_luft.coordinator import IntegrationData
+
+    station = station or make_station()
+    return IntegrationData(
+        stations={station.code: station},
+        measurements=measurements,
+        stale_measurements=frozenset(stale_measurements),
+    )
+
+
+class FakeCoordinator:
+    def __init__(self, data) -> None:
+        self.data = data
+        self.last_update_success = True
+        self._listeners = []
+
+    def async_add_listener(self, callback):
+        self._listeners.append(callback)
+        return lambda: self._listeners.remove(callback)
+
+    def async_update_listeners(self) -> None:
+        for callback in tuple(self._listeners):
+            callback()
+
+
+class FakeRegistry:
+    def __init__(self, entries) -> None:
+        self.entries = list(entries)
+        self.updates: list[tuple[str, dict[str, object]]] = []
+
+    def async_update_entity(self, entity_id, **changes):
+        self.updates.append((entity_id, changes))
+        for entry in self.entries:
+            if entry.entity_id != entity_id:
+                continue
+            for key, value in changes.items():
+                setattr(entry, key, value)
+            return
+
+
+def make_coordinator(data) -> FakeCoordinator:
+    return FakeCoordinator(data)
+
+
+def make_registry_entry(
+    *,
+    unique_id: str,
+    disabled_by,
+    entity_id: str,
+    config_entry_id: str = "entry-1",
+    domain: str = "sensor",
+):
+    return types.SimpleNamespace(
+        domain=domain,
+        unique_id=unique_id,
+        disabled_by=disabled_by,
+        entity_id=entity_id,
+        config_entry_id=config_entry_id,
+    )
+
+
+def make_state(**attributes):
+    return types.SimpleNamespace(attributes=attributes)

@@ -29,12 +29,13 @@ REQUIRED_MANIFEST_KEYS = {
 
 
 class MetadataTest(unittest.TestCase):
-    def test_manifest_and_translations(self) -> None:
+    def test_required_metadata_files_exist(self) -> None:
         self.assertTrue(INTEGRATION_DIR.is_dir())
         self.assertTrue(MANIFEST_PATH.is_file())
         self.assertTrue(HACS_PATH.is_file())
         self.assertTrue(BRAND_ICON_PATH.is_file())
 
+    def test_manifest_matches_project_metadata(self) -> None:
         with MANIFEST_PATH.open("r", encoding="utf-8") as file:
             manifest = json.load(file)
 
@@ -49,6 +50,7 @@ class MetadataTest(unittest.TestCase):
 
         self.assertEqual(manifest["version"], project_data["project"]["version"])
 
+    def test_hacs_and_translations_match_integration_metadata(self) -> None:
         with HACS_PATH.open("r", encoding="utf-8") as file:
             hacs_manifest = json.load(file)
 

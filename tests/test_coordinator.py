@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import io
 import json
 import types
 import unittest
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from homeassistant_stubs import install_homeassistant_stubs
+from homeassistant_stubs import (
+    install_homeassistant_stubs,
+    make_entry,
+    make_hass,
+    make_metric,
+    make_station,
+)
 
 install_homeassistant_stubs()
 
@@ -20,49 +28,28 @@ from custom_components.wiener_luft.coordinator import (  # noqa: E402
     IntegrationCoordinator,
     IntegrationData,
 )
-from custom_components.wiener_luft.measurements_parser import (  # noqa: E402
-    SelectedMetric,
-)
-from custom_components.wiener_luft.station import Station  # noqa: E402
 
 FIXTURE_DIR = Path(__file__).with_name("fixtures")
 LUMES_FIXTURE = FIXTURE_DIR / "lumes_sanitized.csv"
 NOW = datetime(2026, 6, 25, 12, 0, tzinfo=UTC)
 
 
-class _Response:
-    def __init__(self, payload: bytes) -> None:
-        self._payload = payload
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args) -> None:
-        return None
-
-    def read(self) -> bytes:
-        return self._payload
+def make_response(payload: bytes):
+    return nullcontext(io.BytesIO(payload))
 
 
-def _make_coordinator() -> IntegrationCoordinator:
-    coordinator = IntegrationCoordinator.__new__(IntegrationCoordinator)
-
-    async def async_add_executor_job(func, *args):
-        return func(*args)
-
+def make_coordinator(*, data=None, options=None) -> tuple[IntegrationCoordinator, Mock]:
     async_update_entry = Mock(
         side_effect=lambda entry, **changes: setattr(entry, "data", changes["data"])
     )
-
-    coordinator.hass = types.SimpleNamespace(
-        async_add_executor_job=async_add_executor_job,
-        config_entries=types.SimpleNamespace(async_update_entry=async_update_entry),
+    hass = make_hass(
+        config_entries=types.SimpleNamespace(async_update_entry=async_update_entry)
     )
-    coordinator.stations = {}
-    coordinator._stations_last_refresh_attempt = None
-    coordinator.config_entry = types.SimpleNamespace(data={}, options={})
-    coordinator._async_update_entry = async_update_entry
-    return coordinator
+    coordinator = IntegrationCoordinator(
+        hass,
+        make_entry(data=data, options=options),
+    )
+    return coordinator, async_update_entry
 
 
 STATION_PAYLOAD = json.dumps(
@@ -90,14 +77,22 @@ STATION_PAYLOAD = json.dumps(
 
 
 class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
+    def test_parse_source_snapshot_rejects_invalid_shapes(self) -> None:
+        for value in (
+            {"station_codes": ["STA1"], "measurement_keys": ["STA1"]},
+            {"station_codes": [1], "measurement_keys": [["STA1", "PM25"]]},
+        ):
+            with self.subTest(value=value):
+                self.assertIsNone(coordinator_module._parse_source_snapshot(value))
+
     async def test_refresh_stations_caches_within_one_day(self) -> None:
-        coordinator = _make_coordinator()
+        coordinator, _async_update_entry = make_coordinator()
 
         with (
             patch.object(
                 coordinator_module,
                 "urlopen",
-                return_value=_Response(STATION_PAYLOAD),
+                return_value=make_response(STATION_PAYLOAD),
             ) as urlopen_mock,
             patch.object(
                 coordinator_module.dt_util,
@@ -114,7 +109,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({"STA1", "STA2"}, set(coordinator.stations))
 
     async def test_refresh_stations_raises_without_cached_data(self) -> None:
-        coordinator = _make_coordinator()
+        coordinator, _async_update_entry = make_coordinator()
 
         with (
             patch.object(
@@ -128,15 +123,14 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             await coordinator.async_refresh_stations(force=True)
 
     async def test_refresh_stations_keeps_cached_data_on_failure(self) -> None:
-        coordinator = _make_coordinator()
+        coordinator, _async_update_entry = make_coordinator()
         coordinator.stations = {
-            "STA1": Station(
+            "STA1": make_station(
                 code="STA1",
                 name="Station Alpha",
                 district=3,
                 latitude=48.21,
                 longitude=16.31,
-                station_url=None,
             )
         }
 
@@ -154,13 +148,13 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({"STA1"}, set(coordinator.stations))
 
     async def test_refresh_stations_persists_station_snapshot(self) -> None:
-        coordinator = _make_coordinator()
+        coordinator, async_update_entry = make_coordinator()
 
         with (
             patch.object(
                 coordinator_module,
                 "urlopen",
-                return_value=_Response(STATION_PAYLOAD),
+                return_value=make_response(STATION_PAYLOAD),
             ),
             patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
         ):
@@ -171,12 +165,11 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             coordinator_module._station_snapshot(coordinator.stations),
             coordinator.config_entry.data[coordinator_module.STATION_SNAPSHOT],
         )
-        coordinator._async_update_entry.assert_called_once()
+        async_update_entry.assert_called_once()
 
     async def test_async_setup_loads_cached_station_snapshot(self) -> None:
-        coordinator = _make_coordinator()
         cached_stations = {
-            "STA1": Station(
+            "STA1": make_station(
                 code="STA1",
                 name="Station Alpha",
                 district=3,
@@ -185,11 +178,10 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                 station_url="https://example.test/stations/sta1",
             )
         }
-        coordinator.config_entry.data = {
-            coordinator_module.STATION_SNAPSHOT: coordinator_module._station_snapshot(
-                cached_stations
-            )
-        }
+        snapshot = coordinator_module._station_snapshot(cached_stations)
+        coordinator, _async_update_entry = make_coordinator(
+            data={coordinator_module.STATION_SNAPSHOT: snapshot}
+        )
 
         with (
             patch.object(
@@ -204,15 +196,15 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cached_stations, coordinator.stations)
 
     async def test_update_data_logs_unknown_station_codes(self) -> None:
-        coordinator = _make_coordinator()
+        coordinator, _async_update_entry = make_coordinator()
 
         with (
             patch.object(
                 coordinator_module,
                 "urlopen",
                 side_effect=[
-                    _Response(STATION_PAYLOAD),
-                    _Response(LUMES_FIXTURE.read_bytes()),
+                    make_response(STATION_PAYLOAD),
+                    make_response(LUMES_FIXTURE.read_bytes()),
                 ],
             ) as urlopen_mock,
             patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
@@ -221,78 +213,78 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             data = await coordinator._async_update_data()
 
         self.assertIsInstance(data, IntegrationData)
-        self.assertIn(
-            "Wiener Luftmessnetz CSV contains unknown station code STA3",
-            "\n".join(logs.output),
-        )
+        self.assertIn("unknown station code STA3", "\n".join(logs.output))
         self.assertIn("STA3", {key[0] for key in data.measurements})
         self.assertEqual(2, urlopen_mock.call_count)
 
     def test_log_new_source_items_uses_saved_snapshot(self) -> None:
-        coordinator = _make_coordinator()
-        station_alpha = Station(
-            code="STA1",
-            name="Station Alpha",
-            district=3,
-            latitude=48.21,
-            longitude=16.31,
-            station_url=None,
-        )
-        station_beta = Station(
-            code="STA2",
-            name="Station Beta",
-            district=4,
-            latitude=48.22,
-            longitude=16.32,
-            station_url=None,
-        )
-        base_stations = {"STA1": station_alpha, "STA2": station_beta}
+        base_stations = {
+            "STA1": make_station(
+                code="STA1",
+                name="Station Alpha",
+                district=3,
+                latitude=48.21,
+                longitude=16.31,
+            ),
+            "STA2": make_station(
+                code="STA2",
+                name="Station Beta",
+                district=4,
+                latitude=48.22,
+                longitude=16.32,
+            ),
+        }
         base_measurements = {
-            ("STA1", "PM25"): SelectedMetric(12.3, "μg/m³", "1MW", NOW),
-            ("STA2", "O3"): SelectedMetric(4.5, "μg/m³", "HMW", NOW),
+            ("STA1", "PM25"): make_metric(12.3, "1MW"),
+            ("STA2", "O3"): make_metric(4.5, "HMW"),
         }
-        new_station = Station(
-            code="STA3",
-            name="Station Gamma",
-            district=5,
-            latitude=48.23,
-            longitude=16.33,
-            station_url=None,
-        )
-        expanded_stations = {**base_stations, "STA3": new_station}
-        expanded_measurements = {
-            **base_measurements,
-            ("STA3", "PM25"): SelectedMetric(3.2, "μg/m³", "1MW", NOW),
-            ("STA1", "O3"): SelectedMetric(6.7, "μg/m³", "HMW", NOW),
-        }
-        coordinator.stations = expanded_stations
-        coordinator.config_entry.data = {
-            coordinator_module.SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
-                base_stations, base_measurements
+        expanded_stations = base_stations | {
+            "STA3": make_station(
+                code="STA3",
+                name="Station Gamma",
+                district=5,
+                latitude=48.23,
+                longitude=16.33,
             )
         }
-        coordinator.config_entry.options = {}
+        expanded_measurements = base_measurements | {
+            ("STA3", "PM25"): make_metric(3.2, "1MW"),
+            ("STA1", "O3"): make_metric(6.7, "HMW"),
+        }
+        coordinator, _async_update_entry = make_coordinator(
+            data={
+                coordinator_module.SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
+                    base_stations,
+                    base_measurements,
+                )
+            }
+        )
+        coordinator.stations = expanded_stations
 
-        with self.assertLogs(coordinator_module.LOGGER.name, level="INFO") as logs:
+        with self.assertLogs(
+            coordinator_module.LOGGER.name, level="INFO"
+        ) as first_logs:
             coordinator._log_new_source_items(expanded_measurements)
-        with self.assertLogs(coordinator_module.LOGGER.name, level="INFO") as logs2:
+        with self.assertLogs(
+            coordinator_module.LOGGER.name, level="INFO"
+        ) as second_logs:
             coordinator._log_new_source_items(expanded_measurements)
 
         coordinator.config_entry.options = {
             coordinator_module.SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
-                expanded_stations, expanded_measurements
+                expanded_stations,
+                expanded_measurements,
             )
         }
         with self.assertNoLogs(coordinator_module.LOGGER.name, level="INFO"):
             coordinator._log_new_source_items(expanded_measurements)
 
-        self.assertIn("1 new station(s)", logs.output[0])
-        self.assertIn("2 new station/measurement combination(s)", logs.output[0])
-        self.assertIn("1 new station(s)", logs2.output[0])
-        self.assertIn("2 new station/measurement combination(s)", logs2.output[0])
+        self.assertIn("1 new station(s)", first_logs.output[0])
+        self.assertIn("2 new station/measurement combination(s)", first_logs.output[0])
+        self.assertIn("1 new station(s)", second_logs.output[0])
 
     async def test_update_data_changes_when_measurements_turn_stale(self) -> None:
-        coordinator = _make_coordinator()
+        coordinator, _async_update_entry = make_coordinator()
         first_poll = datetime(2026, 6, 24, 21, 30, tzinfo=UTC)
         second_poll = datetime(2026, 6, 24, 22, 0, tzinfo=UTC)
         third_poll = datetime(2026, 6, 24, 23, 0, tzinfo=UTC)
@@ -302,10 +294,10 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                 coordinator_module,
                 "urlopen",
                 side_effect=[
-                    _Response(STATION_PAYLOAD),
-                    _Response(LUMES_FIXTURE.read_bytes()),
-                    _Response(LUMES_FIXTURE.read_bytes()),
-                    _Response(LUMES_FIXTURE.read_bytes()),
+                    make_response(STATION_PAYLOAD),
+                    make_response(LUMES_FIXTURE.read_bytes()),
+                    make_response(LUMES_FIXTURE.read_bytes()),
+                    make_response(LUMES_FIXTURE.read_bytes()),
                 ],
             ),
             patch.object(
@@ -337,14 +329,14 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_update_data_raises_when_measurement_fetch_fails(self) -> None:
-        coordinator = _make_coordinator()
+        coordinator, _async_update_entry = make_coordinator()
 
         with (
             patch.object(
                 coordinator_module,
                 "urlopen",
                 side_effect=[
-                    _Response(STATION_PAYLOAD),
+                    make_response(STATION_PAYLOAD),
                     RuntimeError("measurement feed down"),
                 ],
             ),
@@ -352,3 +344,173 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             self.assertRaises(coordinator_module.UpdateFailed),
         ):
             await coordinator._async_update_data()
+
+    def test_snapshot_parsers_reject_invalid_values(self) -> None:
+        for value in (
+            None,
+            {"station_codes": "STA1", "measurement_keys": []},
+            {"station_codes": [], "measurement_keys": "bad"},
+            {"station_codes": ["STA1"], "measurement_keys": [["STA1"]]},
+            {"station_codes": ["STA1"], "measurement_keys": [["STA1", "PM25", "x"]]},
+            {"station_codes": ["STA1"], "measurement_keys": [["STA1", 25]]},
+        ):
+            with self.subTest(parser="source", value=value):
+                self.assertIsNone(coordinator_module._parse_source_snapshot(value))
+
+        for value in (None, {"STA1": {"name": 123}}):
+            with self.subTest(parser="station", value=value):
+                self.assertIsNone(coordinator_module._parse_station_snapshot(value))
+
+    def test_parse_station_snapshot_item_rejects_invalid_types(self) -> None:
+        base = {
+            "code": "STA1",
+            "name": "Station Alpha",
+            "district": 3,
+            "latitude": 48.21,
+            "longitude": 16.31,
+            "station_url": "https://example.test/stations/sta1",
+        }
+
+        for changes in (
+            {"district": "3"},
+            {"latitude": "48.21"},
+            {"longitude": "16.31"},
+            {"station_url": 123},
+        ):
+            with self.subTest(changes=changes):
+                self.assertIsNone(
+                    coordinator_module._parse_station_snapshot_item(
+                        "STA1",
+                        base | changes,
+                    )
+                )
+
+    def test_station_snapshot_roundtrip(self) -> None:
+        stations = {
+            "STA1": make_station(
+                code="STA1",
+                name="Station Alpha",
+                district=3,
+                latitude=48.21,
+                longitude=16.31,
+                station_url="https://example.test/stations/sta1",
+            ),
+            "STA2": make_station(
+                code="STA2",
+                name="Station Beta",
+                district=None,
+                latitude=None,
+                longitude=None,
+                station_url=None,
+            ),
+        }
+
+        self.assertEqual(
+            stations,
+            coordinator_module._parse_station_snapshot(
+                coordinator_module._station_snapshot(stations)
+            ),
+        )
+
+    def test_source_snapshot_keeps_only_usable_measurements(self) -> None:
+        self.assertEqual(
+            {
+                "station_codes": ["STA1"],
+                "measurement_keys": [["STA1", "PM25"]],
+            },
+            coordinator_module._source_snapshot(
+                {
+                    "STA1": make_station(
+                        code="STA1",
+                        name="Station Alpha",
+                        district=3,
+                        latitude=48.21,
+                        longitude=16.31,
+                    )
+                },
+                {
+                    ("STA1", "PM25"): make_metric(12.3, "1MW"),
+                    ("STA1", "O3"): make_metric(None, "HMW"),
+                    ("STA1", "NO2"): make_metric(5.0, None),
+                    ("STA2", "PM25"): make_metric(7.0, "1MW"),
+                    ("STA1", "ZZ"): make_metric(4.0, "1MW"),
+                },
+            ),
+        )
+
+    async def test_async_fetch_stations_raises_on_invalid_response(self) -> None:
+        with (
+            patch.object(coordinator_module, "_fetch_payload", return_value=b"{}"),
+            patch.object(coordinator_module, "parse_station_geojson", return_value={}),
+            self.assertRaises(coordinator_module.FlowFetchError) as err,
+        ):
+            await coordinator_module.async_fetch_stations(make_hass())
+
+        self.assertEqual("invalid_response", err.exception.reason)
+        self.assertEqual(
+            {"url": coordinator_module.STATIONS_URL},
+            err.exception.placeholders,
+        )
+
+    async def test_async_fetch_measurements_wraps_parser_error(self) -> None:
+        with (
+            patch.object(coordinator_module, "_fetch_payload", return_value=b"{}"),
+            patch.object(
+                coordinator_module,
+                "parse_lumes_csv",
+                side_effect=ValueError("bad csv"),
+            ),
+            self.assertRaises(coordinator_module.FlowFetchError) as err,
+        ):
+            await coordinator_module.async_fetch_measurements(make_hass())
+
+        self.assertEqual("invalid_response", err.exception.reason)
+        self.assertEqual(
+            {"url": coordinator_module.MEASUREMENTS_URL},
+            err.exception.placeholders,
+        )
+
+    async def test_async_fetch_reraises_flow_fetch_error(self) -> None:
+        for fetch, expected_url in (
+            (coordinator_module.async_fetch_stations, coordinator_module.STATIONS_URL),
+            (
+                coordinator_module.async_fetch_measurements,
+                coordinator_module.MEASUREMENTS_URL,
+            ),
+        ):
+            with self.subTest(fetch=fetch.__name__):
+                with (
+                    patch.object(
+                        coordinator_module,
+                        "_fetch_payload",
+                        side_effect=coordinator_module.FlowFetchError(
+                            "cannot_connect",
+                            {"url": expected_url},
+                        ),
+                    ),
+                    self.assertRaises(coordinator_module.FlowFetchError) as err,
+                ):
+                    await fetch(make_hass())
+                self.assertEqual("cannot_connect", err.exception.reason)
+
+    def test_stale_measurements_marks_only_old_values(self) -> None:
+        self.assertEqual(
+            frozenset({("STA1", "O3")}),
+            coordinator_module._stale_measurements(
+                {
+                    ("STA1", "PM25"): make_metric(
+                        1.0,
+                        "1MW",
+                        measured_at=NOW - timedelta(minutes=1),
+                    ),
+                    ("STA1", "O3"): make_metric(
+                        2.0,
+                        "1MW",
+                        measured_at=NOW
+                        - coordinator_module.STALE_AFTER
+                        - timedelta(seconds=1),
+                    ),
+                },
+                NOW,
+            ),
+        )
