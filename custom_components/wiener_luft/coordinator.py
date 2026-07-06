@@ -69,11 +69,9 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
     async def _async_setup(self) -> None:
         """Load station metadata before the first measurement update."""
 
-        config_entry = getattr(self, "config_entry", None)
-        entry_data = getattr(config_entry, "data", None) if config_entry else None
-        if isinstance(entry_data, dict):
+        if self.config_entry is not None:
             self.stations = (
-                _parse_station_snapshot(entry_data.get(STATION_SNAPSHOT))
+                _parse_station_snapshot(self.config_entry.data.get(STATION_SNAPSHOT))
                 or self.stations
             )
         await self.async_refresh_stations(force=True)
@@ -97,26 +95,19 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
                 raise UpdateFailed("Could not load station metadata") from err
             LOGGER.warning("Could not refresh station metadata; keeping cached data")
             return False
-        config_entry = getattr(self, "config_entry", None)
-        hass = getattr(self, "hass", None)
-        config_entries = getattr(hass, "config_entries", None) if hass else None
-        if (
-            config_entry is not None
-            and config_entries is not None
-            and hasattr(config_entries, "async_update_entry")
-        ):
-            entry_data = getattr(config_entry, "data", None)
-            data = dict(entry_data) if entry_data is not None else {}
+
+        if self.config_entry is not None:
+            data = dict(self.config_entry.data)
             snapshot = _station_snapshot(self.stations)
             if data.get(STATION_SNAPSHOT) != snapshot:
                 LOGGER.debug(
-                    "Persisting station snapshot for entry %s (state=%s, listeners=%s)",
-                    getattr(config_entry, "entry_id", None),
-                    getattr(config_entry, "state", None),
-                    len(getattr(config_entry, "update_listeners", []) or []),
+                    "Persisting station snapshot for entry %s",
+                    self.config_entry.entry_id,
                 )
                 data[STATION_SNAPSHOT] = snapshot
-                config_entries.async_update_entry(config_entry, data=data)
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry, data=data
+                )
         return True
 
     async def _async_update_data(self) -> IntegrationData:
@@ -163,12 +154,11 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
     ) -> None:
         """Log source items that were not present in the last stored snapshot."""
 
-        preferences = getattr(self, "config_entry", None)
-        if preferences is None:
+        if self.config_entry is None:
             return
 
-        current_preferences = dict(preferences.data)
-        current_preferences.update(preferences.options)
+        current_preferences = dict(self.config_entry.data)
+        current_preferences.update(self.config_entry.options)
         previous_source_items = _parse_source_snapshot(
             current_preferences.get(SOURCE_SNAPSHOT)
         )

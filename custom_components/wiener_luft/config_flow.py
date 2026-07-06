@@ -360,21 +360,11 @@ async def _async_measurement_step(
 async def _async_reload_config_entry(flow) -> None:
     """Reload an options entry if it still exists."""
 
-    config_entry = getattr(flow, "config_entry", None)
-    if config_entry is None:
-        return
-
-    hass = getattr(flow, "hass", None)
-    config_entries = getattr(hass, "config_entries", None) if hass else None
-    async_reload = (
-        getattr(config_entries, "async_reload", None) if config_entries else None
-    )
-    if async_reload is None:
-        return
+    config_entry = flow.config_entry
 
     LOGGER.debug("Reloading config entry %s after options save", config_entry.entry_id)
     try:
-        await async_reload(config_entry.entry_id)
+        await flow.hass.config_entries.async_reload(config_entry.entry_id)
     except UnknownEntry:
         LOGGER.debug(
             "Skipping reload for missing config entry %s after options save",

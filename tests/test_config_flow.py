@@ -342,17 +342,6 @@ class ConfigFlowTest(unittest.TestCase):
         self.assertEqual("Feinstaub", names["PM25"])
         self.assertEqual("Ozone", names["O3"])
 
-    def test_reload_config_entry_returns_without_reload_support(self) -> None:
-        for flow in (
-            types.SimpleNamespace(),
-            types.SimpleNamespace(
-                config_entry=types.SimpleNamespace(entry_id="entry-1"),
-                hass=make_hass(config_entries=types.SimpleNamespace()),
-            ),
-        ):
-            with self.subTest(flow=flow):
-                asyncio.run(config_flow_module._async_reload_config_entry(flow))
-
 
 class OptionsFlowTest(unittest.TestCase):
     def test_init_uses_existing_explicit_preferences(self) -> None:
