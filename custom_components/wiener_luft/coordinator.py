@@ -25,11 +25,17 @@ from .const import (
     STATIONS_URL,
 )
 from .measurements import MEASUREMENT_SPECS
-from .measurements_parser import SelectedMetric, parse_lumes_csv
+from .measurements_parser import (
+    MeasurementKey,
+    SelectedMeasurements,
+    parse_lumes_csv,
+)
 from .station import Station
 from .stations_parser import parse_station_geojson
 
 LOGGER = logging.getLogger(__name__)
+type SourceItems = tuple[set[str], set[MeasurementKey]]
+type StaleMeasurements = frozenset[MeasurementKey]
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,8 +51,8 @@ class IntegrationData:
     """Normalized data exposed to entities."""
 
     stations: dict[str, Station]
-    measurements: dict[tuple[str, str], SelectedMetric]
-    stale_measurements: frozenset[tuple[str, str]] = field(default_factory=frozenset)
+    measurements: SelectedMeasurements
+    stale_measurements: StaleMeasurements = field(default_factory=frozenset)
 
 
 class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
@@ -133,9 +139,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
             stale_measurements=_stale_measurements(measurements, now),
         )
 
-    def _log_unknown_station_codes(
-        self, measurements: dict[tuple[str, str], SelectedMetric]
-    ) -> None:
+    def _log_unknown_station_codes(self, measurements: SelectedMeasurements) -> None:
         """Log stations present in measurements but missing from station metadata."""
 
         for station_code in dict.fromkeys(
@@ -149,9 +153,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
                 station_code,
             )
 
-    def _log_new_source_items(
-        self, measurements: dict[tuple[str, str], SelectedMetric]
-    ) -> None:
+    def _log_new_source_items(self, measurements: SelectedMeasurements) -> None:
         """Log source items that were not present in the last stored snapshot."""
 
         if self.config_entry is None:
@@ -183,9 +185,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         )
 
 
-def _parse_source_snapshot(
-    value: object,
-) -> tuple[set[str], set[tuple[str, str]]] | None:
+def _parse_source_snapshot(value: object) -> SourceItems | None:
     """Parse the stored source snapshot from config entry data or options."""
 
     if not isinstance(value, dict):
@@ -216,8 +216,8 @@ def _parse_source_snapshot(
 
 def _source_items(
     stations: dict[str, Station],
-    measurements: dict[tuple[str, str], SelectedMetric],
-) -> tuple[set[str], set[tuple[str, str]]]:
+    measurements: SelectedMeasurements,
+) -> SourceItems:
     """Return the currently available station and measurement keys."""
 
     current_station_codes = set(stations)
@@ -234,7 +234,7 @@ def _source_items(
 
 def build_source_snapshot(
     stations: dict[str, Station],
-    measurements: dict[tuple[str, str], SelectedMetric],
+    measurements: SelectedMeasurements,
 ) -> dict[str, list]:
     """Serialize the currently available station and measurement keys."""
 
@@ -310,9 +310,9 @@ def _fetch_payload(url: str) -> bytes:
 
 
 def _stale_measurements(
-    measurements: dict[tuple[str, str], SelectedMetric],
+    measurements: SelectedMeasurements,
     now: datetime,
-) -> frozenset[tuple[str, str]]:
+) -> StaleMeasurements:
     """Return the measurement keys that should currently be treated as stale."""
 
     return frozenset(
@@ -340,7 +340,7 @@ async def async_fetch_stations(hass: HomeAssistant) -> dict[str, Station]:
 
 async def async_fetch_measurements(
     hass: HomeAssistant,
-) -> dict[tuple[str, str], SelectedMetric]:
+) -> SelectedMeasurements:
     """Fetch and parse current measurements."""
 
     try:

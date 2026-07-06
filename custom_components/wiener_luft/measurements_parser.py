@@ -22,6 +22,7 @@ TIMEZONES: dict[str, tzinfo] = {
     "CET": timezone(timedelta(hours=1), name="CET"),
     "CEST": timezone(timedelta(hours=2), name="CEST"),
 }
+type MeasurementKey = tuple[str, str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,7 +46,10 @@ class MeasurementColumn:
     time_zone: str | None
 
 
-def parse_lumes_csv(payload: str | bytes) -> dict[tuple[str, str], SelectedMetric]:
+type SelectedMeasurements = dict[MeasurementKey, SelectedMetric]
+
+
+def parse_lumes_csv(payload: str | bytes) -> SelectedMeasurements:
     """Parse the Lumes v2 CSV and select one reading per station/measurement."""
 
     text = decode_payload(payload)
@@ -54,7 +58,7 @@ def parse_lumes_csv(payload: str | bytes) -> dict[tuple[str, str], SelectedMetri
     component_row, averaging_row, unit_row = _parse_lumes_header(rows)
     columns_by_component = _collect_columns(component_row, averaging_row, unit_row)
     width = len(component_row)
-    selected: dict[tuple[str, str], SelectedMetric] = {}
+    selected: SelectedMeasurements = {}
 
     for row_number, row in enumerate(rows[4:], start=5):
         if not row or not row[0].strip():
@@ -169,7 +173,7 @@ def _collect_columns(
 
 
 def _select_row_measurements(
-    selected: dict[tuple[str, str], SelectedMetric],
+    selected: SelectedMeasurements,
     station_code: str,
     row: list[str],
     columns_by_component: dict[str, list[MeasurementColumn]],
