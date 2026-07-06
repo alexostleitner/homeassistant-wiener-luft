@@ -6,8 +6,8 @@ import voluptuous as vol
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .const import CONF_MEASUREMENTS
-from .coordinator import IntegrationData
 from .measurements import MEASUREMENT_SPECS
+from .models import IntegrationData
 
 
 def _count_available_measurements(

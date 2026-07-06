@@ -21,11 +21,8 @@ from .config_flow_stations import (
     station_defaults,
 )
 from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN, NAME
-from .coordinator import (
-    IntegrationData,
-    SourceSnapshot,
-    build_source_snapshot,
-)
+from .coordinator import build_source_snapshot
+from .models import IntegrationData, SourceSnapshot
 
 
 class SavedPreferences(TypedDict):

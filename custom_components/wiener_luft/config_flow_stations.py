@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .const import CONF_STATIONS
-from .coordinator import IntegrationData
+from .models import IntegrationData
 from .station import Station
 
 

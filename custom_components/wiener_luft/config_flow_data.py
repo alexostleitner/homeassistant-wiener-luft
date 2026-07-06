@@ -8,9 +8,10 @@ from pathlib import Path
 
 from homeassistant.core import HomeAssistant
 
-from .coordinator import IntegrationData, async_fetch_measurements, async_fetch_stations
 from .exceptions import FlowFetchError
+from .fetch import async_fetch_measurements, async_fetch_stations
 from .measurements import MEASUREMENT_SPECS
+from .models import IntegrationData
 
 
 async def async_fetch_flow_data(

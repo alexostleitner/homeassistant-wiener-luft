@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from datetime import datetime
-from typing import TypedDict
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
@@ -26,34 +25,15 @@ from .const import (
     STATIONS_URL,
 )
 from .exceptions import FlowFetchError, IntegrationError
+from .fetch import async_fetch_parsed_payload
 from .measurements import MEASUREMENT_SPECS
-from .measurements_parser import (
-    MeasurementKey,
-    SelectedMeasurements,
-    parse_lumes_csv,
-)
+from .measurements_parser import MeasurementKey, SelectedMeasurements, parse_lumes_csv
+from .models import IntegrationData, SourceSnapshot
 from .station import Station
 from .stations_parser import parse_station_geojson
 
 LOGGER = logging.getLogger(__name__)
 type SourceItems = tuple[set[str], set[MeasurementKey]]
-type StaleMeasurements = frozenset[MeasurementKey]
-
-
-class SourceSnapshot(TypedDict):
-    """Serialized source snapshot stored in config entry data or options."""
-
-    station_codes: list[str]
-    measurement_keys: list[list[str]]
-
-
-@dataclass(frozen=True, slots=True)
-class IntegrationData:
-    """Normalized data exposed to entities."""
-
-    stations: dict[str, Station]
-    measurements: SelectedMeasurements
-    stale_measurements: StaleMeasurements = field(default_factory=frozenset)
 
 
 class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
@@ -300,6 +280,19 @@ def _parse_station_snapshot_item(code: object, value: object) -> Station | None:
     )
 
 
+def _stale_measurements(
+    measurements: SelectedMeasurements,
+    now: datetime,
+) -> frozenset[MeasurementKey]:
+    """Return the measurement keys that should currently be treated as stale."""
+
+    return frozenset(
+        key
+        for key, reading in measurements.items()
+        if reading.measured_at is not None and now - reading.measured_at > STALE_AFTER
+    )
+
+
 def _fetch_payload(url: str) -> bytes:
     """Fetch one payload from the configured source URL."""
 
@@ -310,30 +303,15 @@ def _fetch_payload(url: str) -> bytes:
         raise FlowFetchError("cannot_connect", {"url": url}) from err
 
 
-def _stale_measurements(
-    measurements: SelectedMeasurements,
-    now: datetime,
-) -> StaleMeasurements:
-    """Return the measurement keys that should currently be treated as stale."""
-
-    return frozenset(
-        key
-        for key, reading in measurements.items()
-        if reading.measured_at is not None and now - reading.measured_at > STALE_AFTER
-    )
-
-
 async def async_fetch_stations(hass: HomeAssistant) -> dict[str, Station]:
     """Fetch and parse station metadata."""
 
-    try:
-        stations = parse_station_geojson(
-            await hass.async_add_executor_job(_fetch_payload, STATIONS_URL)
-        )
-    except FlowFetchError:
-        raise
-    except Exception as err:
-        raise FlowFetchError("invalid_response", {"url": STATIONS_URL}) from err
+    stations = await async_fetch_parsed_payload(
+        hass,
+        url=STATIONS_URL,
+        fetch_payload=_fetch_payload,
+        parser=parse_station_geojson,
+    )
     if not stations:
         raise FlowFetchError("invalid_response", {"url": STATIONS_URL})
     return stations
@@ -344,11 +322,9 @@ async def async_fetch_measurements(
 ) -> SelectedMeasurements:
     """Fetch and parse current measurements."""
 
-    try:
-        return parse_lumes_csv(
-            await hass.async_add_executor_job(_fetch_payload, MEASUREMENTS_URL)
-        )
-    except FlowFetchError:
-        raise
-    except Exception as err:
-        raise FlowFetchError("invalid_response", {"url": MEASUREMENTS_URL}) from err
+    return await async_fetch_parsed_payload(
+        hass,
+        url=MEASUREMENTS_URL,
+        fetch_payload=_fetch_payload,
+        parser=parse_lumes_csv,
+    )
