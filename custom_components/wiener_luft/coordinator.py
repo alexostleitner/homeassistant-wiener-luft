@@ -25,6 +25,7 @@ from .const import (
     STATION_UPDATE_INTERVAL,
     STATIONS_URL,
 )
+from .exceptions import FlowFetchError, IntegrationError
 from .measurements import MEASUREMENT_SPECS
 from .measurements_parser import (
     MeasurementKey,
@@ -44,14 +45,6 @@ class SourceSnapshot(TypedDict):
 
     station_codes: list[str]
     measurement_keys: list[list[str]]
-
-
-@dataclass(frozen=True, slots=True)
-class FlowFetchError(Exception):
-    """Structured fetch error that can be surfaced in config flow UI."""
-
-    reason: str
-    placeholders: dict[str, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +97,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         self._stations_last_refresh_attempt = now
         try:
             self.stations = await async_fetch_stations(self.hass)
-        except Exception as err:
+        except IntegrationError as err:
             if not self.stations:
                 raise UpdateFailed("Could not load station metadata") from err
             LOGGER.warning("Could not refresh station metadata; keeping cached data")
@@ -131,7 +124,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
 
         try:
             measurements = await async_fetch_measurements(self.hass)
-        except Exception as err:
+        except IntegrationError as err:
             raise UpdateFailed(
                 "Could not update Wiener Luftmessnetz measurements"
             ) from err

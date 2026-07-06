@@ -8,12 +8,8 @@ from pathlib import Path
 
 from homeassistant.core import HomeAssistant
 
-from .coordinator import (
-    FlowFetchError,
-    IntegrationData,
-    async_fetch_measurements,
-    async_fetch_stations,
-)
+from .coordinator import IntegrationData, async_fetch_measurements, async_fetch_stations
+from .exceptions import FlowFetchError
 from .measurements import MEASUREMENT_SPECS
 
 
