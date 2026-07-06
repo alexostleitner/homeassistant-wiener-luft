@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .measurements import MISSING_VALUES
+MISSING_VALUES = frozenset({"", "NE", "-999", "—", "---", "⸻"})
 
 
 def decode_payload(payload: str | bytes) -> str:
