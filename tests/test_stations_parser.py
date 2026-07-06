@@ -50,6 +50,14 @@ class StationGeoJsonParsingTest(unittest.TestCase):
                     },
                     "geometry": {"coordinates": [16.5, 48.3]},
                 },
+                {
+                    "properties": {
+                        "NAME_KURZ": "STA4",
+                        "NAME": "Station Delta",
+                        "BEZIRK": "not-a-number",
+                    },
+                    "geometry": {"coordinates": ["east", "north"]},
+                },
             ]
         }
 
@@ -58,7 +66,7 @@ class StationGeoJsonParsingTest(unittest.TestCase):
         ) as logs:
             stations = parse_station_geojson(payload)
 
-        self.assertEqual({"STA1", "STA3"}, set(stations))
+        self.assertEqual({"STA1", "STA3", "STA4"}, set(stations))
         self.assertEqual("Station Alpha Updated", stations["STA1"].name)
         self.assertEqual(4, stations["STA1"].district)
         self.assertEqual(48.22, stations["STA1"].latitude)
@@ -67,12 +75,27 @@ class StationGeoJsonParsingTest(unittest.TestCase):
         self.assertIsNone(stations["STA3"].district)
         self.assertEqual(48.3, stations["STA3"].latitude)
         self.assertEqual(16.5, stations["STA3"].longitude)
+        self.assertIsNone(stations["STA4"].district)
+        self.assertIsNone(stations["STA4"].longitude)
+        self.assertIsNone(stations["STA4"].latitude)
         self.assertIn(
             "Duplicate station metadata for NAME_KURZ=STA1",
             "\n".join(logs.output),
         )
         self.assertIn(
             "Skipping station feature without NAME_KURZ",
+            "\n".join(logs.output),
+        )
+        self.assertIn(
+            "Could not parse station BEZIRK value 'not-a-number' for STA4",
+            "\n".join(logs.output),
+        )
+        self.assertIn(
+            "Could not parse station longitude value 'east' for STA4",
+            "\n".join(logs.output),
+        )
+        self.assertIn(
+            "Could not parse station latitude value 'north' for STA4",
             "\n".join(logs.output),
         )
 

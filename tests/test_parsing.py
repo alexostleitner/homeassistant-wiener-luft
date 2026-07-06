@@ -33,11 +33,10 @@ class ParsingHelpersTest(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual(expected, parse_number(value))
 
-    def test_parse_number_logs_invalid_values(self) -> None:
-        with self.assertLogs(
+    def test_parse_number_returns_none_for_invalid_values_without_logging(self) -> None:
+        with self.assertNoLogs(
             "custom_components.wiener_luft.parsing", level="WARNING"
-        ) as logs:
+        ):
             result = parse_number("not a number")
 
         self.assertIsNone(result)
-        self.assertIn("Could not parse numeric value 'not a number'", logs.output[0])

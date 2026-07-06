@@ -121,6 +121,25 @@ class LumesCsvParsingTest(unittest.TestCase):
             "\n".join(logs.output),
         )
 
+    def test_parse_lumes_csv_logs_invalid_measurement_value(self) -> None:
+        with self.assertLogs(
+            "custom_components.wiener_luft.measurements_parser", level="WARNING"
+        ) as logs:
+            parsed = self._parse(
+                "Lumes;v2.10;01.01.2026-00:00:00",
+                ";PM10",
+                ";HMW",
+                ";µg/m³",
+                "STA1;not-a-number",
+            )
+
+        self.assertIsNone(parsed[("STA1", "PM10")].value)
+        self.assertIn(
+            "Could not parse measurement value 'not-a-number' for station STA1 "
+            "component PM10",
+            "\n".join(logs.output),
+        )
+
     def test_parse_lumes_csv_tracks_multiple_time_blocks(self) -> None:
         parsed = self._parse(
             "Lumes;v2.10;01.01.2026-00:00:00",

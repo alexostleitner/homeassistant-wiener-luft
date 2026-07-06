@@ -12,7 +12,7 @@ from .measurements import (
     MEASUREMENT_PRIORITY,
     MEASUREMENT_SPECS,
 )
-from .parsing import MISSING_VALUES, decode_payload, parse_number
+from .parsing import MISSING_VALUES, decode_payload, is_missing_number, parse_number
 
 LOGGER = logging.getLogger(__name__)
 TIMEZONES: dict[str, tzinfo] = {
@@ -85,19 +85,30 @@ def parse_lumes_csv(payload: str | bytes) -> SelectedMeasurements:
 
 
 def _choose_column(
-    row: list[str], candidates: list[MeasurementColumn]
+    station_code: str,
+    component: str,
+    row: list[str],
+    candidates: list[MeasurementColumn],
 ) -> MeasurementColumn | None:
+    invalid_value: str | int | float | None = None
     for averaging_type in MEASUREMENT_PRIORITY:
         for column in candidates:
             if column.averaging_type != averaging_type:
                 continue
-            if (
-                parse_number(
-                    row[column.value_index] if column.value_index < len(row) else None
-                )
-                is not None
-            ):
+            raw_value = (
+                row[column.value_index] if column.value_index < len(row) else None
+            )
+            if parse_number(raw_value) is not None:
                 return column
+            if invalid_value is None and not is_missing_number(raw_value):
+                invalid_value = raw_value
+    if invalid_value is not None:
+        LOGGER.warning(
+            "Could not parse measurement value %r for station %s component %s",
+            invalid_value,
+            station_code,
+            component,
+        )
     return None
 
 
@@ -179,7 +190,7 @@ def _select_row_measurements(
     columns_by_component: dict[str, list[MeasurementColumn]],
 ) -> None:
     for component, component_columns in columns_by_component.items():
-        chosen_column = _choose_column(row, component_columns)
+        chosen_column = _choose_column(station_code, component, row, component_columns)
         unit = component_columns[0].unit or MEASUREMENT_SPECS[component].unit
         if chosen_column is None:
             selected[(station_code, component)] = SelectedMetric(

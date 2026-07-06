@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Any
 
-from .parsing import decode_payload, parse_number
+from .parsing import decode_payload, is_missing_number, parse_number
 from .station import Station
 
 LOGGER = logging.getLogger(__name__)
@@ -42,8 +42,10 @@ def parse_station_geojson(payload: str | bytes | dict[str, Any]) -> dict[str, St
 def _station_from_feature(
     feature: dict[str, Any], properties: Any, code: str
 ) -> Station:
-    longitude, latitude = _coordinates_from_feature(feature)
-    district = parse_number(properties.get("BEZIRK"))
+    longitude, latitude = _coordinates_from_feature(feature, code)
+    district = _parse_station_number(
+        properties.get("BEZIRK"), code=code, field="BEZIRK"
+    )
     return Station(
         code=code,
         name=str(properties.get("NAME") or code).strip(),
@@ -56,11 +58,26 @@ def _station_from_feature(
 
 def _coordinates_from_feature(
     feature: dict[str, Any],
+    code: str,
 ) -> tuple[float | None, float | None]:
     coordinates = (feature.get("geometry") or {}).get("coordinates") or []
     if not isinstance(coordinates, (list, tuple)) or len(coordinates) < 2:
         return None, None
 
-    longitude = parse_number(coordinates[0])
-    latitude = parse_number(coordinates[1])
+    longitude = _parse_station_number(coordinates[0], code=code, field="longitude")
+    latitude = _parse_station_number(coordinates[1], code=code, field="latitude")
     return longitude, latitude
+
+
+def _parse_station_number(
+    value: str | int | float | None, *, code: str, field: str
+) -> float | None:
+    parsed = parse_number(value)
+    if parsed is None and not is_missing_number(value):
+        LOGGER.warning(
+            "Could not parse station %s value %r for %s",
+            field,
+            value,
+            code,
+        )
+    return parsed

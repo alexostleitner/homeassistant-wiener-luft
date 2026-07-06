@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import logging
-
 from .measurements import MISSING_VALUES
-
-LOGGER = logging.getLogger(__name__)
 
 
 def decode_payload(payload: str | bytes) -> str:
@@ -27,17 +23,22 @@ def decode_payload(payload: str | bytes) -> str:
 def parse_number(value: str | int | float | None) -> float | None:
     """Parse a source number, treating declared placeholders as missing."""
 
-    if value is None:
+    if is_missing_number(value):
         return None
     if isinstance(value, int | float):
-        return None if value == -999 else float(value)
-
-    text = value.strip()
-    if text.upper() in MISSING_VALUES:
-        return None
+        return float(value)
 
     try:
-        return float(text.replace(",", "."))
+        return float(value.strip().replace(",", "."))
     except ValueError:
-        LOGGER.warning("Could not parse numeric value %r", value)
         return None
+
+
+def is_missing_number(value: str | int | float | None) -> bool:
+    """Return whether a source number should be treated as missing."""
+
+    if value is None:
+        return True
+    if isinstance(value, int | float):
+        return value == -999
+    return value.strip().upper() in MISSING_VALUES
