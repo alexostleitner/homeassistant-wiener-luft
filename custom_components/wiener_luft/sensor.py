@@ -89,7 +89,6 @@ def _build_entities(
     coordinator: IntegrationCoordinator,
     selected_stations: set[str] | None,
     selected_measurements: set[str] | None,
-    known_entity_keys: set[tuple[str, str]] | None = None,
 ) -> list[MeasurementSensor]:
     if coordinator.data is None:
         return []
@@ -114,7 +113,6 @@ def _build_entities(
             reading = coordinator.data.measurements.get(entity_key)
             if (
                 spec is None
-                or (known_entity_keys is not None and entity_key in known_entity_keys)
                 or reading is None
                 or reading.value is None
                 or reading.measurement_type is None
@@ -159,12 +157,16 @@ async def async_setup_entry(
     async_add_entities(entities)
 
     def async_add_new_entities() -> None:
-        new_entities = _build_entities(
+        available_entities = _build_entities(
             coordinator,
             selected_stations,
             selected_measurements,
-            known_entity_keys,
         )
+        new_entities = [
+            entity
+            for entity in available_entities
+            if (entity._station_code, entity._component) not in known_entity_keys
+        ]
         if not new_entities:
             return
 
