@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from typing import TypedDict
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
@@ -36,6 +37,13 @@ from .stations_parser import parse_station_geojson
 LOGGER = logging.getLogger(__name__)
 type SourceItems = tuple[set[str], set[MeasurementKey]]
 type StaleMeasurements = frozenset[MeasurementKey]
+
+
+class SourceSnapshot(TypedDict):
+    """Serialized source snapshot stored in config entry data or options."""
+
+    station_codes: list[str]
+    measurement_keys: list[list[str]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,14 +243,14 @@ def _source_items(
 def build_source_snapshot(
     stations: dict[str, Station],
     measurements: SelectedMeasurements,
-) -> dict[str, list]:
+) -> SourceSnapshot:
     """Serialize the currently available station and measurement keys."""
 
     station_codes, measurement_keys = _source_items(stations, measurements)
-    return {
-        "station_codes": sorted(station_codes),
-        "measurement_keys": [list(item) for item in sorted(measurement_keys)],
-    }
+    return SourceSnapshot(
+        station_codes=sorted(station_codes),
+        measurement_keys=[list(item) for item in sorted(measurement_keys)],
+    )
 
 
 def _station_snapshot(stations: dict[str, Station]) -> dict[str, dict[str, object]]:

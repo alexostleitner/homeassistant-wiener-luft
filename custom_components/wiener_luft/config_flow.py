@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
 
 from homeassistant import config_entries
 from homeassistant.config_entries import (
@@ -20,30 +20,37 @@ from .config_flow_stations import (
     sorted_stations_for_flow,
     station_defaults,
 )
-from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN, NAME, SOURCE_SNAPSHOT
+from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN, NAME
 from .coordinator import (
     IntegrationData,
+    SourceSnapshot,
     build_source_snapshot,
 )
 
-# Saved preferences
+
+class SavedPreferences(TypedDict):
+    """Persisted station and measurement selections for config entries."""
+
+    stations: list[str]
+    measurements: list[str]
+    _source_snapshot: SourceSnapshot
 
 
 def _build_saved_preferences(
     integration_data: IntegrationData,
     selected_stations: list[str],
     selected_measurements: list[str],
-) -> dict[str, object]:
+) -> SavedPreferences:
     """Return the payload saved in config entry data or options."""
 
-    return {
-        CONF_STATIONS: selected_stations,
-        CONF_MEASUREMENTS: selected_measurements,
-        SOURCE_SNAPSHOT: build_source_snapshot(
+    return SavedPreferences(
+        stations=selected_stations,
+        measurements=selected_measurements,
+        _source_snapshot=build_source_snapshot(
             integration_data.stations,
             integration_data.measurements,
         ),
-    }
+    )
 
 
 # Flows
@@ -194,7 +201,7 @@ class IntegrationOptionsFlow(OptionsFlowWithReload):
         self._data: IntegrationData | None = None
         self._selected_stations: list[str] = []
 
-    def _saved_preferences(self) -> dict[str, object] | None:
+    def _saved_preferences(self) -> SavedPreferences | None:
         """Return merged saved preferences when both selections are present."""
 
         preferences = dict(self.config_entry.data)
