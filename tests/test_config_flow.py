@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import sys
-import types
 import unittest
 from types import MappingProxyType, ModuleType
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 from urllib.error import URLError
 
 from homeassistant_stubs import (
@@ -42,6 +41,9 @@ from custom_components.wiener_luft import (  # noqa: E402
     config_flow as config_flow_module,
 )
 from custom_components.wiener_luft import (  # noqa: E402
+    config_flow_data as config_flow_data_module,
+)
+from custom_components.wiener_luft import (  # noqa: E402
     coordinator as coordinator_module,
 )
 from custom_components.wiener_luft.const import (  # noqa: E402
@@ -57,11 +59,20 @@ def read_selector(schema):
     return str(field.schema), default, selector.config
 
 
+def make_flow_data(stations, measurements):
+    return coordinator_module.IntegrationData(
+        stations=stations,
+        measurements=measurements,
+    )
+
+
 class ConfigFlowTest(unittest.TestCase):
     def test_load_measurement_names_returns_empty_for_missing_translation(self) -> None:
         self.assertEqual(
             {},
-            config_flow_module._load_measurement_names("zz-test-missing"),
+            config_flow_data_module._load_measurement_names_from_file(
+                "zz-test-missing"
+            ),
         )
 
     def test_user_step_aborts_when_station_fetch_fails(self) -> None:
@@ -70,10 +81,8 @@ class ConfigFlowTest(unittest.TestCase):
 
         with patch.object(
             config_flow_module,
-            "async_fetch_stations",
-            side_effect=config_flow_module.FlowFetchError(
-                "cannot_connect", {"url": STATIONS_URL}
-            ),
+            "async_fetch_flow_data",
+            return_value=(None, "stations_cannot_connect", {"url": STATIONS_URL}),
         ):
             result = asyncio.run(flow.async_step_user())
 
@@ -88,14 +97,11 @@ class ConfigFlowTest(unittest.TestCase):
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value={"STA1": make_station(name="Alpha")},
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                side_effect=config_flow_module.FlowFetchError(
-                    "cannot_connect", {"url": MEASUREMENTS_URL}
+                "async_fetch_flow_data",
+                return_value=(
+                    None,
+                    "measurements_cannot_connect",
+                    {"url": MEASUREMENTS_URL},
                 ),
             ),
         ):
@@ -112,16 +118,18 @@ class ConfigFlowTest(unittest.TestCase):
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value={
-                    "STA2": make_station("STA2", "Beta"),
-                    "STA1": make_station("STA1", "Alpha"),
-                },
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value={},
+                "async_fetch_flow_data",
+                return_value=(
+                    make_flow_data(
+                        {
+                            "STA2": make_station("STA2", "Beta"),
+                            "STA1": make_station("STA1", "Alpha"),
+                        },
+                        {},
+                    ),
+                    None,
+                    None,
+                ),
             ),
         ):
             result = asyncio.run(flow.async_step_user())
@@ -148,20 +156,22 @@ class ConfigFlowTest(unittest.TestCase):
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value={
-                    "S3": make_station("S3", "Charlie", latitude=48.25),
-                    "S6": make_station("S6", "Zulu", latitude=48.2),
-                    "S2": make_station("S2", "Bravo", latitude=48.23),
-                    "S5": make_station("S5", "Echo", latitude=48.24),
-                    "S1": make_station("S1", "Alpha", latitude=48.21),
-                    "S4": make_station("S4", "Mike", latitude=48.22),
-                },
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value={},
+                "async_fetch_flow_data",
+                return_value=(
+                    make_flow_data(
+                        {
+                            "S3": make_station("S3", "Charlie", latitude=48.25),
+                            "S6": make_station("S6", "Zulu", latitude=48.2),
+                            "S2": make_station("S2", "Bravo", latitude=48.23),
+                            "S5": make_station("S5", "Echo", latitude=48.24),
+                            "S1": make_station("S1", "Alpha", latitude=48.21),
+                            "S4": make_station("S4", "Mike", latitude=48.22),
+                        },
+                        {},
+                    ),
+                    None,
+                    None,
+                ),
             ),
         ):
             result = asyncio.run(flow.async_step_user())
@@ -187,16 +197,20 @@ class ConfigFlowTest(unittest.TestCase):
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value={
-                    "STA2": make_station("STA2", "Beta", latitude=None, longitude=None),
-                    "STA1": make_station("STA1", "Alpha"),
-                },
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value={},
+                "async_fetch_flow_data",
+                return_value=(
+                    make_flow_data(
+                        {
+                            "STA2": make_station(
+                                "STA2", "Beta", latitude=None, longitude=None
+                            ),
+                            "STA1": make_station("STA1", "Alpha"),
+                        },
+                        {},
+                    ),
+                    None,
+                    None,
+                ),
             ),
         ):
             result = asyncio.run(flow.async_step_user())
@@ -218,21 +232,23 @@ class ConfigFlowTest(unittest.TestCase):
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value={
-                    "STA1": make_station("STA1", "Alpha"),
-                    "STA2": make_station("STA2", "Beta"),
-                },
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value={
-                    ("STA1", "PM25"): make_metric(12.3, "1MW"),
-                    ("STA1", "O3"): make_metric(5.0, "HMW"),
-                    ("STA2", "PM25"): make_metric(11.8, "1MW"),
-                    ("STA2", "O3"): make_metric(None, None),
-                },
+                "async_fetch_flow_data",
+                return_value=(
+                    make_flow_data(
+                        {
+                            "STA1": make_station("STA1", "Alpha"),
+                            "STA2": make_station("STA2", "Beta"),
+                        },
+                        {
+                            ("STA1", "PM25"): make_metric(12.3, "1MW"),
+                            ("STA1", "O3"): make_metric(5.0, "HMW"),
+                            ("STA2", "PM25"): make_metric(11.8, "1MW"),
+                            ("STA2", "O3"): make_metric(None, None),
+                        },
+                    ),
+                    None,
+                    None,
+                ),
             ),
         ):
             result = asyncio.run(flow.async_step_user({"stations": ["STA1", "STA2"]}))
@@ -257,13 +273,8 @@ class ConfigFlowTest(unittest.TestCase):
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value=stations,
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value=measurements,
+                "async_fetch_flow_data",
+                return_value=(make_flow_data(stations, measurements), None, None),
             ),
         ):
             asyncio.run(flow.async_step_user({"stations": ["STA1"]}))
@@ -276,7 +287,7 @@ class ConfigFlowTest(unittest.TestCase):
             {
                 "stations": ["STA1"],
                 "measurements": ["PM25"],
-                SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
+                SOURCE_SNAPSHOT: coordinator_module.build_source_snapshot(
                     stations,
                     measurements,
                 ),
@@ -291,13 +302,12 @@ class ConfigFlowTest(unittest.TestCase):
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value={"STA1": make_station("STA1", "Alpha")},
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value={},
+                "async_fetch_flow_data",
+                return_value=(
+                    make_flow_data({"STA1": make_station("STA1", "Alpha")}, {}),
+                    None,
+                    None,
+                ),
             ),
         ):
             result = asyncio.run(flow.async_step_user({"stations": []}))
@@ -312,13 +322,15 @@ class ConfigFlowTest(unittest.TestCase):
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value={"STA1": make_station("STA1", "Alpha")},
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value={("STA1", "PM25"): make_metric(12.3, "1MW")},
+                "async_fetch_flow_data",
+                return_value=(
+                    make_flow_data(
+                        {"STA1": make_station("STA1", "Alpha")},
+                        {("STA1", "PM25"): make_metric(12.3, "1MW")},
+                    ),
+                    None,
+                    None,
+                ),
             ),
         ):
             asyncio.run(flow.async_step_user({"stations": ["STA1"]}))
@@ -331,12 +343,14 @@ class ConfigFlowTest(unittest.TestCase):
         self,
     ) -> None:
         with patch.object(
-            config_flow_module,
-            "_load_measurement_names",
+            config_flow_data_module,
+            "_load_measurement_names_from_file",
             side_effect=[{"pm25": "Feinstaub"}, {"pm25": "PM2.5", "o3": "Ozone"}],
         ):
             names = asyncio.run(
-                config_flow_module._async_measurement_names(make_hass(language="de"))
+                config_flow_data_module.async_get_measurement_names(
+                    make_hass(language="de")
+                )
             )
 
         self.assertEqual("Feinstaub", names["PM25"])
@@ -355,16 +369,18 @@ class OptionsFlowTest(unittest.TestCase):
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value={
-                    "STA1": make_station("STA1", "Alpha"),
-                    "STA2": make_station("STA2", "Beta"),
-                },
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value={},
+                "async_fetch_flow_data",
+                return_value=(
+                    make_flow_data(
+                        {
+                            "STA1": make_station("STA1", "Alpha"),
+                            "STA2": make_station("STA2", "Beta"),
+                        },
+                        {},
+                    ),
+                    None,
+                    None,
+                ),
             ),
         ):
             result = asyncio.run(flow.async_step_init())
@@ -383,19 +399,21 @@ class OptionsFlowTest(unittest.TestCase):
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value={
-                    "STA1": make_station("STA1", "Alpha"),
-                    "STA2": make_station("STA2", "Beta"),
-                },
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value={
-                    ("STA1", "PM25"): make_metric(12.3, "1MW"),
-                    ("STA2", "O3"): make_metric(5.0, "HMW"),
-                },
+                "async_fetch_flow_data",
+                return_value=(
+                    make_flow_data(
+                        {
+                            "STA1": make_station("STA1", "Alpha"),
+                            "STA2": make_station("STA2", "Beta"),
+                        },
+                        {
+                            ("STA1", "PM25"): make_metric(12.3, "1MW"),
+                            ("STA2", "O3"): make_metric(5.0, "HMW"),
+                        },
+                    ),
+                    None,
+                    None,
+                ),
             ),
         ):
             station_result = asyncio.run(flow.async_step_init())
@@ -419,30 +437,22 @@ class OptionsFlowTest(unittest.TestCase):
             measurement_selector["options"],
         )
 
-    def test_measurement_step_persists_snapshot_and_reloads(self) -> None:
+    def test_measurement_step_persists_snapshot(self) -> None:
         stations = {"STA1": make_station("STA1", "Alpha")}
         measurements = {("STA1", "PM25"): make_metric(12.3, "1MW")}
-        config_entries = types.SimpleNamespace(
-            async_reload=AsyncMock(return_value=None)
-        )
         flow = config_flow_module.IntegrationOptionsFlow()
         flow._config_entry = make_entry(
             entry_id="entry-1",
             data=MappingProxyType({"stations": ["STA1"], "measurements": ["PM25"]}),
             options=MappingProxyType({}),
         )
-        flow.hass = make_hass(config_entries=config_entries)
+        flow.hass = make_hass()
 
         with (
             patch.object(
                 config_flow_module,
-                "async_fetch_stations",
-                return_value=stations,
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value=measurements,
+                "async_fetch_flow_data",
+                return_value=(make_flow_data(stations, measurements), None, None),
             ),
         ):
             asyncio.run(flow.async_step_init({"stations": ["STA1"]}))
@@ -455,48 +465,21 @@ class OptionsFlowTest(unittest.TestCase):
             {
                 "stations": ["STA1"],
                 "measurements": ["PM25"],
-                SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
+                SOURCE_SNAPSHOT: coordinator_module.build_source_snapshot(
                     stations,
                     measurements,
                 ),
             },
             result["data"],
         )
-        config_entries.async_reload.assert_awaited_once_with("entry-1")
 
-    def test_measurement_step_ignores_missing_entry_reload(self) -> None:
-        config_entries = types.SimpleNamespace(
-            async_reload=AsyncMock(
-                side_effect=config_flow_module.UnknownEntry("removed")
+    def test_options_flow_uses_reload_base_class(self) -> None:
+        self.assertTrue(
+            issubclass(
+                config_flow_module.IntegrationOptionsFlow,
+                config_flow_module.OptionsFlowWithReload,
             )
         )
-        flow = config_flow_module.IntegrationOptionsFlow()
-        flow._config_entry = make_entry(
-            entry_id="entry-removed",
-            data=MappingProxyType({"stations": ["STA1"], "measurements": ["PM25"]}),
-            options=MappingProxyType({}),
-        )
-        flow.hass = make_hass(config_entries=config_entries)
-
-        with (
-            patch.object(
-                config_flow_module,
-                "async_fetch_stations",
-                return_value={"STA1": make_station("STA1", "Alpha")},
-            ),
-            patch.object(
-                config_flow_module,
-                "async_fetch_measurements",
-                return_value={("STA1", "PM25"): make_metric(12.3, "1MW")},
-            ),
-        ):
-            asyncio.run(flow.async_step_init({"stations": ["STA1"]}))
-            result = asyncio.run(
-                flow.async_step_measurements({"measurements": ["PM25"]})
-            )
-
-        self.assertEqual("create_entry", result["type"])
-        config_entries.async_reload.assert_awaited_once_with("entry-removed")
 
     def test_fetch_payload_raises_connect_error(self) -> None:
         with (

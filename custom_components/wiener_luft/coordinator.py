@@ -232,7 +232,7 @@ def _source_items(
     return current_station_codes, current_measurement_keys
 
 
-def _source_snapshot(
+def build_source_snapshot(
     stations: dict[str, Station],
     measurements: dict[tuple[str, str], SelectedMetric],
 ) -> dict[str, list]:

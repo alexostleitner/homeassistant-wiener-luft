@@ -253,9 +253,11 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         }
         coordinator, _async_update_entry = make_coordinator(
             data={
-                coordinator_module.SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
-                    base_stations,
-                    base_measurements,
+                coordinator_module.SOURCE_SNAPSHOT: (
+                    coordinator_module.build_source_snapshot(
+                        base_stations,
+                        base_measurements,
+                    )
                 )
             }
         )
@@ -271,9 +273,11 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             coordinator._log_new_source_items(expanded_measurements)
 
         coordinator.config_entry.options = {
-            coordinator_module.SOURCE_SNAPSHOT: coordinator_module._source_snapshot(
-                expanded_stations,
-                expanded_measurements,
+            coordinator_module.SOURCE_SNAPSHOT: (
+                coordinator_module.build_source_snapshot(
+                    expanded_stations,
+                    expanded_measurements,
+                )
             )
         }
         with self.assertNoLogs(coordinator_module.LOGGER.name, level="INFO"):
@@ -418,7 +422,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                 "station_codes": ["STA1"],
                 "measurement_keys": [["STA1", "PM25"]],
             },
-            coordinator_module._source_snapshot(
+            coordinator_module.build_source_snapshot(
                 {
                     "STA1": make_station(
                         code="STA1",

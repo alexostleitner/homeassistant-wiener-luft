@@ -56,6 +56,10 @@ class _OptionsFlow(_ConfigFlow):
         return self._config_entry
 
 
+class _OptionsFlowWithReload(_OptionsFlow):
+    automatic_reload = True
+
+
 class _DataUpdateCoordinator:
     __class_getitem__ = classmethod(_return_cls)
 
@@ -103,6 +107,7 @@ def install_homeassistant_stubs() -> None:
         "homeassistant.config_entries",
         "homeassistant.const",
         "homeassistant.core",
+        "homeassistant.data_entry_flow",
         "homeassistant.helpers",
         "homeassistant.helpers.device_registry",
         "homeassistant.helpers.entity_registry",
@@ -156,12 +161,16 @@ def install_homeassistant_stubs() -> None:
 
     modules["homeassistant.config_entries"].ConfigFlow = _ConfigFlow
     modules["homeassistant.config_entries"].OptionsFlow = _OptionsFlow
-    modules["homeassistant.config_entries"].OptionsFlowWithReload = _OptionsFlow
+    modules[
+        "homeassistant.config_entries"
+    ].OptionsFlowWithReload = _OptionsFlowWithReload
     modules["homeassistant.config_entries"].ConfigEntry = type("ConfigEntry", (), {})
+    modules["homeassistant.config_entries"].ConfigFlowResult = dict
     modules["homeassistant.config_entries"].UnknownEntry = type(
         "UnknownEntry", (Exception,), {}
     )
     modules["homeassistant.core"].HomeAssistant = type("HomeAssistant", (), {})
+    modules["homeassistant.core"].callback = lambda func: func
     modules["homeassistant.helpers.device_registry"].DeviceInfo = type(
         "DeviceInfo", (dict,), {}
     )
