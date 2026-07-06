@@ -10,6 +10,8 @@ from typing import Any
 
 def _coordinator_entity_init(self, coordinator) -> None:
     self.coordinator = coordinator
+    self.hass = None
+    self.entity_id = None
 
 
 def _return_cls(cls, _item):

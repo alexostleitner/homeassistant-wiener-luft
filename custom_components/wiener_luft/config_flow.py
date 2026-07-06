@@ -49,7 +49,7 @@ async def _async_load_flow_data(
 async def _async_measurement_names(hass) -> dict[str, str]:
     """Return localized measurement names from integration translations."""
 
-    language = getattr(getattr(hass, "config", None), "language", None) or "en"
+    language = hass.config.language or "en"
     names = await hass.async_add_executor_job(_load_measurement_names, language)
     if language != "en":
         fallback = await hass.async_add_executor_job(_load_measurement_names, "en")
@@ -131,9 +131,8 @@ def _sorted_stations(
     """Return station ordering for the selector."""
 
     stations = list(integration_data.stations.values())
-    home_config = getattr(hass, "config", None)
-    home_latitude = getattr(home_config, "latitude", None)
-    home_longitude = getattr(home_config, "longitude", None)
+    home_latitude = hass.config.latitude
+    home_longitude = hass.config.longitude
     if home_latitude is None or home_longitude is None:
         return _alphabetical_stations(stations)
 

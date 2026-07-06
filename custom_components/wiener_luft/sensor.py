@@ -297,12 +297,10 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         return False
 
     def _log_unit_change(self) -> None:
-        hass = getattr(self, "hass", None)
-        entity_id = getattr(self, "entity_id", None)
-        if hass is None or entity_id is None:
+        if self.hass is None or self.entity_id is None:
             return
 
-        old_state = hass.states.get(entity_id)
+        old_state = self.hass.states.get(self.entity_id)
         if old_state is None:
             return
 
@@ -317,19 +315,17 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
 
         LOGGER.warning(
             "Unit of measurement for %s changed from %s to %s",
-            entity_id,
+            self.entity_id,
             previous_unit,
             current_unit,
         )
 
     def _log_interval_change(self) -> None:
-        hass = getattr(self, "hass", None)
-        entity_id = getattr(self, "entity_id", None)
         reading = self._reading
-        if hass is None or entity_id is None or reading is None:
+        if self.hass is None or self.entity_id is None or reading is None:
             return
 
-        old_state = hass.states.get(entity_id)
+        old_state = self.hass.states.get(self.entity_id)
         if old_state is None:
             return
 
@@ -344,7 +340,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
 
         LOGGER.warning(
             "Interval for %s changed from %s to %s",
-            entity_id,
+            self.entity_id,
             previous_interval,
             current_interval,
         )
