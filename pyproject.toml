@@ -32,7 +32,7 @@ target-version = "py314"
 select = ["E", "F", "I", "B", "UP", "C90", "SIM", "RUF", "PERF"]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 8
+max-complexity = 6
 
 [tool.setuptools.packages.find]
 include = ["custom_components*"]
