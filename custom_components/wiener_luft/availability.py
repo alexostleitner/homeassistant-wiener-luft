@@ -18,10 +18,10 @@ def availability_items(
     return (
         set(stations),
         {
-            (station_code, component)
-            for (station_code, component), reading in measurements.items()
+            (station_code, measurement_code)
+            for (station_code, measurement_code), reading in measurements.items()
             if station_code in stations
-            and component in MEASUREMENT_SPECS
+            and measurement_code in MEASUREMENT_SPECS
             and reading.value is not None
             and reading.measurement_type is not None
         },
@@ -51,7 +51,7 @@ def unknown_station_codes(
     return tuple(
         station_code
         for station_code in dict.fromkeys(
-            station_code for station_code, _component in measurements
+            station_code for station_code, _measurement_code in measurements
         )
         if station_code not in stations
     )

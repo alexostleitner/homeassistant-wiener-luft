@@ -46,7 +46,7 @@ async def async_setup_sensors(
         selected_measurements,
     )
     known_entity_keys = {
-        (entity._station_code, entity._component) for entity in entities
+        (entity._station_code, entity._measurement_code) for entity in entities
     }
     async_add_entities(entities)
 
@@ -59,13 +59,16 @@ async def async_setup_sensors(
         new_entities = [
             entity
             for entity in available_entities
-            if (entity._station_code, entity._component) not in known_entity_keys
+            if (entity._station_code, entity._measurement_code) not in known_entity_keys
         ]
         if not new_entities:
             return
 
         known_entity_keys.update(
-            {(entity._station_code, entity._component) for entity in new_entities}
+            {
+                (entity._station_code, entity._measurement_code)
+                for entity in new_entities
+            }
         )
         async_add_entities(new_entities)
 
@@ -93,9 +96,9 @@ def _sync_entity_registry(
         return
 
     selected_unique_ids = {
-        _build_unique_id(station_code, component)
+        _build_unique_id(station_code, measurement_code)
         for station_code in selected_stations
-        for component in selected_measurements
+        for measurement_code in selected_measurements
     }
     registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
@@ -132,19 +135,19 @@ def _build_entities(
         if selected_stations is not None and station_code not in selected_stations:
             continue
 
-        components = (
+        measurement_codes = (
             (
-                component
-                for component in MEASUREMENT_SPECS
-                if component in selected_measurements
+                measurement_code
+                for measurement_code in MEASUREMENT_SPECS
+                if measurement_code in selected_measurements
             )
             if selected_measurements is not None
             else MEASUREMENT_SPECS.keys()
         )
-        for component in components:
-            spec = MEASUREMENT_SPECS.get(component)
-            entity_key = (station_code, component)
-            reading = coordinator.data.measurements.get(entity_key)
+        for measurement_code in measurement_codes:
+            spec = MEASUREMENT_SPECS.get(measurement_code)
+            measurement_key = (station_code, measurement_code)
+            reading = coordinator.data.measurements.get(measurement_key)
             if (
                 spec is None
                 or reading is None
@@ -153,5 +156,7 @@ def _build_entities(
             ):
                 continue
 
-            entities.append(MeasurementSensor(coordinator, station, component, spec))
+            entities.append(
+                MeasurementSensor(coordinator, station, measurement_code, spec)
+            )
     return entities

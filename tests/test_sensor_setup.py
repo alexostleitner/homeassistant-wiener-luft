@@ -58,7 +58,7 @@ class SensorSetupTest(unittest.TestCase):
         entities = _build_entities(coordinator, {"STA2"}, {"PM25", "ZZ"})
         self.assertEqual(
             [("STA2", "PM25")],
-            [(entity._station_code, entity._component) for entity in entities],
+            [(entity._station_code, entity._measurement_code) for entity in entities],
         )
 
     def test_setup_adds_new_entities_once(self) -> None:
@@ -86,7 +86,7 @@ class SensorSetupTest(unittest.TestCase):
 
         self.assertEqual(
             ["PM25", "O3", "NOX", "WR"],
-            [entity._component for entity in batches[0]],
+            [entity._measurement_code for entity in batches[0]],
         )
 
         coordinator.data = make_data(
@@ -99,7 +99,7 @@ class SensorSetupTest(unittest.TestCase):
         coordinator.async_update_listeners()
 
         self.assertEqual(2, len(batches))
-        self.assertEqual(["NO2"], [entity._component for entity in batches[1]])
+        self.assertEqual(["NO2"], [entity._measurement_code for entity in batches[1]])
 
     def test_setup_skips_unknown_measurements(self) -> None:
         coordinator = make_coordinator(
@@ -120,7 +120,7 @@ class SensorSetupTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(["PM25"], [entity._component for entity in batches[0]])
+        self.assertEqual(["PM25"], [entity._measurement_code for entity in batches[0]])
 
     def test_setup_filters_entities_by_explicit_selection(self) -> None:
         coordinator = make_coordinator(
@@ -145,7 +145,10 @@ class SensorSetupTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(["PM25", "WR"], [entity._component for entity in batches[0]])
+        self.assertEqual(
+            ["PM25", "WR"],
+            [entity._measurement_code for entity in batches[0]],
+        )
 
     def test_setup_skips_missing_selected_measurements(self) -> None:
         for measurements in (
@@ -176,7 +179,10 @@ class SensorSetupTest(unittest.TestCase):
                     )
                 )
 
-                self.assertEqual(["PM25"], [entity._component for entity in batches[0]])
+                self.assertEqual(
+                    ["PM25"],
+                    [entity._measurement_code for entity in batches[0]],
+                )
 
     def test_setup_syncs_registry_entries(self) -> None:
         coordinator = make_coordinator(

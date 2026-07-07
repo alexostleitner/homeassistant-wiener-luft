@@ -46,13 +46,13 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         self,
         coordinator: IntegrationCoordinator,
         station: Station,
-        component: str,
+        measurement_code: str,
         measurement_spec: MeasurementSpec,
     ) -> None:
         super().__init__(coordinator)
         self._station_code = station.code
         self._station = station
-        self._component = component
+        self._measurement_code = measurement_code
         self._measurement_spec = measurement_spec
 
         self._attr_translation_key = measurement_spec.translation_key
@@ -66,7 +66,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         self._attr_suggested_display_precision = DISPLAY_PRECISION_BY_UNIT.get(
             measurement_spec.unit
         )
-        self._attr_unique_id = _build_unique_id(station.code, component)
+        self._attr_unique_id = _build_unique_id(station.code, measurement_code)
         self._attr_device_info = station_device_info(station)
 
     @property
@@ -76,7 +76,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         return measurement_native_value(
-            self._component,
+            self._measurement_code,
             self._reading,
             self._wind_speed_reading,
         )
@@ -104,7 +104,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         if self.coordinator.data is None:
             return None
         return self.coordinator.data.measurements.get(
-            (self._station_code, self._component)
+            (self._station_code, self._measurement_code)
         )
 
     @property
@@ -119,7 +119,7 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             self.coordinator.last_update_success,
             self._reading,
             self.coordinator.data is not None
-            and (self._station_code, self._component)
+            and (self._station_code, self._measurement_code)
             in self.coordinator.data.stale_measurements,
         )
 
@@ -191,10 +191,10 @@ async def async_setup_entry(
     await async_setup_sensors(hass, entry, async_add_entities)
 
 
-def _build_unique_id(station_code: str, component: str) -> str:
+def _build_unique_id(station_code: str, measurement_code: str) -> str:
     """Build the stable unique ID for one station/measurement entity."""
 
     return (
-        f"{DOMAIN}_{MEASUREMENT_SPECS[component].measurement_slug}_"
+        f"{DOMAIN}_{MEASUREMENT_SPECS[measurement_code].measurement_slug}_"
         f"{slugify(station_code)}"
     )

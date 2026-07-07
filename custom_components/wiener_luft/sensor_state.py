@@ -7,7 +7,7 @@ from .measurements_parser import SelectedMetric
 
 
 def measurement_native_value(
-    component: str,
+    measurement_code: str,
     reading: SelectedMetric | None,
     wind_speed_reading: SelectedMetric | None,
 ) -> float | None:
@@ -15,7 +15,7 @@ def measurement_native_value(
 
     if reading is None:
         return None
-    if component == "WR" and _wind_speed_is_calm(wind_speed_reading):
+    if measurement_code == "WR" and _wind_speed_is_calm(wind_speed_reading):
         return None
     return reading.value
 
