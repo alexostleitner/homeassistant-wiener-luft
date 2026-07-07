@@ -87,15 +87,15 @@ def _restore_station_snapshot_entry(code: object, value: object) -> Station | No
     latitude = value.get("latitude")
     longitude = value.get("longitude")
     station_url = value.get("station_url")
-    if stored_code != code or not isinstance(name, str):
-        return None
-    if district is not None and not isinstance(district, int):
-        return None
-    if latitude is not None and not isinstance(latitude, (int, float)):
-        return None
-    if longitude is not None and not isinstance(longitude, (int, float)):
-        return None
-    if station_url is not None and not isinstance(station_url, str):
+    if not _has_valid_station_snapshot_entry_types(
+        code,
+        stored_code,
+        name,
+        district,
+        latitude,
+        longitude,
+        station_url,
+    ):
         return None
 
     return Station(
@@ -106,3 +106,25 @@ def _restore_station_snapshot_entry(code: object, value: object) -> Station | No
         longitude=float(longitude) if longitude is not None else None,
         station_url=station_url,
     )
+
+
+def _has_valid_station_snapshot_entry_types(
+    code: str,
+    stored_code: object,
+    name: object,
+    district: object,
+    latitude: object,
+    longitude: object,
+    station_url: object,
+) -> bool:
+    """Return whether one persisted station entry has the expected field types."""
+
+    if stored_code != code or not isinstance(name, str):
+        return False
+    if district is not None and not isinstance(district, int):
+        return False
+    if latitude is not None and not isinstance(latitude, (int, float)):
+        return False
+    if longitude is not None and not isinstance(longitude, (int, float)):
+        return False
+    return station_url is None or isinstance(station_url, str)
