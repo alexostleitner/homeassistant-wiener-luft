@@ -10,6 +10,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from .availability import (
+    availability_changes,
+    availability_items,
+    unknown_station_codes,
+)
 from .const import (
     MEASUREMENT_UPDATE_INTERVAL,
     NAME,
@@ -23,7 +28,6 @@ from .fetch import async_fetch_measurements, async_fetch_stations
 from .measurements_parser import MeasurementKey, SelectedMeasurements
 from .models import IntegrationData
 from .snapshots import (
-    build_availability_snapshot,
     build_station_snapshot,
     restore_availability_snapshot,
     restore_station_snapshot,
@@ -114,17 +118,13 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         return IntegrationData(
             stations=self.stations,
             measurements=measurements,
-            stale_measurements=_stale_measurements(measurements, now),
+            stale_measurements=_stale_measurement_keys(measurements, now),
         )
 
     def _log_unknown_station_codes(self, measurements: SelectedMeasurements) -> None:
         """Log stations present in measurements but missing from station metadata."""
 
-        for station_code in dict.fromkeys(
-            station_code for station_code, _component in measurements
-        ):
-            if station_code in self.stations:
-                continue
+        for station_code in unknown_station_codes(self.stations, measurements):
             LOGGER.warning(
                 "Wiener Luftmessnetz CSV contains unknown station code %s that is not "
                 "present in station metadata",
@@ -145,14 +145,10 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         if previous_source_items is None:
             return
 
-        previous_station_codes, previous_measurement_keys = previous_source_items
-        current_availability_items = restore_availability_snapshot(
-            build_availability_snapshot(self.stations, measurements)
+        new_station_codes, new_measurement_keys = availability_changes(
+            previous_source_items,
+            availability_items(self.stations, measurements),
         )
-        assert current_availability_items is not None
-        current_station_codes, current_measurement_keys = current_availability_items
-        new_station_codes = current_station_codes - previous_station_codes
-        new_measurement_keys = current_measurement_keys - previous_measurement_keys
         if not new_station_codes and not new_measurement_keys:
             return
 
@@ -165,7 +161,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         )
 
 
-def _stale_measurements(
+def _stale_measurement_keys(
     measurements: SelectedMeasurements,
     now: datetime,
 ) -> frozenset[MeasurementKey]:

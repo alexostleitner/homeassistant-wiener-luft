@@ -484,10 +484,10 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                     await fetch(make_hass())
                 self.assertEqual("cannot_connect", err.exception.reason)
 
-    def test_stale_measurements_marks_only_old_values(self) -> None:
+    def test_stale_measurement_keys_marks_only_old_values(self) -> None:
         self.assertEqual(
             frozenset({("STA1", "O3")}),
-            coordinator_module._stale_measurements(
+            coordinator_module._stale_measurement_keys(
                 {
                     ("STA1", "PM25"): make_metric(
                         1.0,

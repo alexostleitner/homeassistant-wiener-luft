@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from .measurements import MEASUREMENT_SPECS
-from .measurements_parser import MeasurementKey, SelectedMeasurements
+from .availability import AvailabilityItems, availability_items
+from .measurements_parser import SelectedMeasurements
 from .models import SourceSnapshot
 from .station import Station
-
-type AvailabilityItems = tuple[set[str], set[MeasurementKey]]
 
 
 def restore_availability_snapshot(value: object) -> AvailabilityItems | None:
@@ -41,31 +39,13 @@ def restore_availability_snapshot(value: object) -> AvailabilityItems | None:
     return previous_station_codes, previous_measurement_keys
 
 
-def _availability_items(
-    stations: dict[str, Station],
-    measurements: SelectedMeasurements,
-) -> AvailabilityItems:
-    """Return the currently available station and measurement keys."""
-
-    current_station_codes = set(stations)
-    current_measurement_keys = {
-        (station_code, component)
-        for (station_code, component), reading in measurements.items()
-        if station_code in stations
-        and component in MEASUREMENT_SPECS
-        and reading.value is not None
-        and reading.measurement_type is not None
-    }
-    return current_station_codes, current_measurement_keys
-
-
 def build_availability_snapshot(
     stations: dict[str, Station],
     measurements: SelectedMeasurements,
 ) -> SourceSnapshot:
     """Serialize the currently available station and measurement keys."""
 
-    station_codes, measurement_keys = _availability_items(stations, measurements)
+    station_codes, measurement_keys = availability_items(stations, measurements)
     return SourceSnapshot(
         station_codes=sorted(station_codes),
         measurement_keys=[list(item) for item in sorted(measurement_keys)],
