@@ -23,7 +23,7 @@ install_homeassistant_stubs()
 from custom_components.wiener_luft.measurements import (  # noqa: E402
     MEASUREMENT_SPECS,
 )
-from custom_components.wiener_luft.sensor import (  # noqa: E402
+from custom_components.wiener_luft.sensor_entity import (  # noqa: E402
     MeasurementSensor,
 )
 

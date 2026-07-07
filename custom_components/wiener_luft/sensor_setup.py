@@ -12,7 +12,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN
 from .coordinator import IntegrationCoordinator
 from .measurements import MEASUREMENT_SPECS
-from .sensor import MeasurementSensor, _build_unique_id
+from .measurements_parser import MeasurementKey
+from .sensor_entity import MeasurementSensor, build_sensor_unique_id
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,36 +41,31 @@ async def async_setup_sensors(
         selected_measurements,
     )
     _sync_entity_registry(hass, entry, selected_stations, selected_measurements)
-    entities = _build_entities(
+    entities_by_measurement_key = _build_entities_by_measurement_key(
         coordinator,
         selected_stations,
         selected_measurements,
     )
-    known_entity_keys = {
-        (entity._station_code, entity._measurement_code) for entity in entities
-    }
-    async_add_entities(entities)
+    known_measurement_keys = set(entities_by_measurement_key)
+    async_add_entities(entities_by_measurement_key.values())
 
     def async_add_new_entities() -> None:
-        available_entities = _build_entities(
+        available_entities_by_measurement_key = _build_entities_by_measurement_key(
             coordinator,
             selected_stations,
             selected_measurements,
         )
+        new_measurement_keys = (
+            set(available_entities_by_measurement_key) - known_measurement_keys
+        )
         new_entities = [
-            entity
-            for entity in available_entities
-            if (entity._station_code, entity._measurement_code) not in known_entity_keys
+            available_entities_by_measurement_key[measurement_key]
+            for measurement_key in new_measurement_keys
         ]
         if not new_entities:
             return
 
-        known_entity_keys.update(
-            {
-                (entity._station_code, entity._measurement_code)
-                for entity in new_entities
-            }
-        )
+        known_measurement_keys.update(new_measurement_keys)
         async_add_entities(new_entities)
 
     LOGGER.debug(
@@ -96,7 +92,7 @@ def _sync_entity_registry(
         return
 
     selected_unique_ids = {
-        _build_unique_id(station_code, measurement_code)
+        build_sensor_unique_id(station_code, measurement_code)
         for station_code in selected_stations
         for measurement_code in selected_measurements
     }
@@ -120,17 +116,17 @@ def _sync_entity_registry(
             )
 
 
-def _build_entities(
+def _build_entities_by_measurement_key(
     coordinator: IntegrationCoordinator,
     selected_stations: set[str] | None,
     selected_measurements: set[str] | None,
-) -> list[MeasurementSensor]:
+) -> dict[MeasurementKey, MeasurementSensor]:
     """Build the currently available measurement entities."""
 
     if coordinator.data is None:
-        return []
+        return {}
 
-    entities: list[MeasurementSensor] = []
+    entities: dict[MeasurementKey, MeasurementSensor] = {}
     for station_code, station in coordinator.data.stations.items():
         if selected_stations is not None and station_code not in selected_stations:
             continue
@@ -156,7 +152,7 @@ def _build_entities(
             ):
                 continue
 
-            entities.append(
-                MeasurementSensor(coordinator, station, measurement_code, spec)
+            entities[measurement_key] = MeasurementSensor(
+                coordinator, station, measurement_code, spec
             )
     return entities

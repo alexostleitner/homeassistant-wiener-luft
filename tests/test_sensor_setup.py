@@ -20,19 +20,22 @@ from homeassistant_stubs import (
 install_homeassistant_stubs()
 
 from custom_components.wiener_luft.models import IntegrationData  # noqa: E402
-from custom_components.wiener_luft.sensor import (  # noqa: E402
+from custom_components.wiener_luft.sensor import async_setup_entry  # noqa: E402
+from custom_components.wiener_luft.sensor_entity import (  # noqa: E402
     MeasurementSensor,
-    _build_unique_id,
-    async_setup_entry,
+    build_sensor_unique_id,
 )
 from custom_components.wiener_luft.sensor_setup import (  # noqa: E402
-    _build_entities,
+    _build_entities_by_measurement_key,
 )
 
 
 class SensorSetupTest(unittest.TestCase):
     def test_build_entities_returns_empty_without_data(self) -> None:
-        self.assertEqual([], _build_entities(make_coordinator(None), None, None))
+        self.assertEqual(
+            {},
+            _build_entities_by_measurement_key(make_coordinator(None), None, None),
+        )
 
     def test_build_entities_filters_selection(self) -> None:
         coordinator = make_coordinator(
@@ -55,10 +58,14 @@ class SensorSetupTest(unittest.TestCase):
             )
         )
 
-        entities = _build_entities(coordinator, {"STA2"}, {"PM25", "ZZ"})
+        entities_by_measurement_key = _build_entities_by_measurement_key(
+            coordinator,
+            {"STA2"},
+            {"PM25", "ZZ"},
+        )
         self.assertEqual(
-            [("STA2", "PM25")],
-            [(entity._station_code, entity._measurement_code) for entity in entities],
+            {("STA2", "PM25")},
+            set(entities_by_measurement_key),
         )
 
     def test_setup_adds_new_entities_once(self) -> None:
@@ -191,12 +198,12 @@ class SensorSetupTest(unittest.TestCase):
         registry = FakeRegistry(
             [
                 make_registry_entry(
-                    unique_id=_build_unique_id("STA1", "PM25"),
+                    unique_id=build_sensor_unique_id("STA1", "PM25"),
                     disabled_by="integration",
                     entity_id="sensor.pm25_sta1",
                 ),
                 make_registry_entry(
-                    unique_id=_build_unique_id("STA1", "O3"),
+                    unique_id=build_sensor_unique_id("STA1", "O3"),
                     disabled_by=None,
                     entity_id="sensor.o3_sta1",
                 ),
