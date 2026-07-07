@@ -191,47 +191,78 @@ def _select_row_measurements(
 ) -> None:
     for component, component_columns in columns_by_component.items():
         chosen_column = _choose_column(station_code, component, row, component_columns)
-        unit = component_columns[0].unit or MEASUREMENT_SPECS[component].unit
-        if chosen_column is None:
-            selected[(station_code, component)] = SelectedMetric(
-                value=None,
-                unit=unit,
-                measurement_type=None,
-                measured_at=None,
-            )
-            continue
+        selected[(station_code, component)] = _build_selected_metric(
+            component,
+            row,
+            component_columns,
+            chosen_column,
+        )
 
-        measured_at_text = (
-            row[chosen_column.time_index]
-            if chosen_column.time_index is not None
-            and chosen_column.time_index < len(row)
+
+def _build_selected_metric(
+    component: str,
+    row: list[str],
+    component_columns: list[MeasurementColumn],
+    chosen_column: MeasurementColumn | None,
+) -> SelectedMetric:
+    """Build the selected metric for one station/component row."""
+
+    unit = component_columns[0].unit or MEASUREMENT_SPECS[component].unit
+    if chosen_column is None:
+        return SelectedMetric(
+            value=None,
+            unit=unit,
+            measurement_type=None,
+            measured_at=None,
+        )
+
+    return SelectedMetric(
+        value=parse_number(
+            row[chosen_column.value_index]
+            if chosen_column.value_index < len(row)
             else None
-        )
-        measured_at: datetime | None = None
-        parsed_time_zone: tzinfo | None = None
-        if chosen_column.time_zone is not None:
-            time_zone_text = chosen_column.time_zone.strip().upper()
-            if time_zone_text and time_zone_text not in MISSING_VALUES:
-                parsed_time_zone = TIMEZONES.get(time_zone_text)
-                if parsed_time_zone is None:
-                    LOGGER.warning(
-                        "Could not parse timezone value %r", chosen_column.time_zone
-                    )
-        if measured_at_text is not None and parsed_time_zone is not None:
-            try:
-                measured_at = datetime.strptime(
-                    measured_at_text, "%d.%m.%Y, %H:%M"
-                ).replace(tzinfo=parsed_time_zone)
-            except ValueError:
-                LOGGER.warning("Could not parse datetime value %r", measured_at_text)
+        ),
+        unit=chosen_column.unit or unit,
+        measurement_type=chosen_column.averaging_type,
+        measured_at=_parse_measured_at(row, chosen_column),
+    )
 
-        selected[(station_code, component)] = SelectedMetric(
-            value=parse_number(
-                row[chosen_column.value_index]
-                if chosen_column.value_index < len(row)
-                else None
-            ),
-            unit=chosen_column.unit or unit,
-            measurement_type=chosen_column.averaging_type,
-            measured_at=measured_at,
+
+def _parse_measured_at(
+    row: list[str],
+    chosen_column: MeasurementColumn,
+) -> datetime | None:
+    """Parse the measurement timestamp for one chosen CSV column."""
+
+    measured_at_text = (
+        row[chosen_column.time_index]
+        if chosen_column.time_index is not None and chosen_column.time_index < len(row)
+        else None
+    )
+    parsed_time_zone = _parse_time_zone(chosen_column.time_zone)
+    if measured_at_text is None or parsed_time_zone is None:
+        return None
+
+    try:
+        return datetime.strptime(measured_at_text, "%d.%m.%Y, %H:%M").replace(
+            tzinfo=parsed_time_zone
         )
+    except ValueError:
+        LOGGER.warning("Could not parse datetime value %r", measured_at_text)
+        return None
+
+
+def _parse_time_zone(time_zone: str | None) -> tzinfo | None:
+    """Parse the persisted time zone label for one measurement column."""
+
+    if time_zone is None:
+        return None
+
+    time_zone_text = time_zone.strip().upper()
+    if not time_zone_text or time_zone_text in MISSING_VALUES:
+        return None
+
+    parsed_time_zone = TIMEZONES.get(time_zone_text)
+    if parsed_time_zone is None:
+        LOGGER.warning("Could not parse timezone value %r", time_zone)
+    return parsed_time_zone
