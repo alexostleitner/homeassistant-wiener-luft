@@ -112,7 +112,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(first)
         self.assertFalse(second)
         self.assertEqual(1, urlopen_mock.call_count)
-        self.assertEqual({"STA1", "STA2"}, set(coordinator.stations))
+        self.assertEqual({"STA1", "STA2"}, set(coordinator._cached_stations))
 
     async def test_refresh_stations_raises_without_cached_data(self) -> None:
         coordinator, _async_update_entry = make_coordinator()
@@ -128,7 +128,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_refresh_stations_keeps_cached_data_on_failure(self) -> None:
         coordinator, _async_update_entry = make_coordinator()
-        coordinator.stations = {
+        coordinator._cached_stations = {
             "STA1": make_station(
                 code="STA1",
                 name="Station Alpha",
@@ -147,7 +147,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             refreshed = await coordinator.async_refresh_stations(force=True)
 
         self.assertFalse(refreshed)
-        self.assertEqual({"STA1"}, set(coordinator.stations))
+        self.assertEqual({"STA1"}, set(coordinator._cached_stations))
 
     async def test_refresh_stations_persists_station_snapshot(self) -> None:
         coordinator, async_update_entry = make_coordinator()
@@ -162,7 +162,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(refreshed)
         self.assertEqual(
-            snapshots_module.build_station_snapshot(coordinator.stations),
+            snapshots_module.build_station_snapshot(coordinator._cached_stations),
             coordinator.config_entry.data[coordinator_module.STATION_SNAPSHOT],
         )
         async_update_entry.assert_called_once()
@@ -191,7 +191,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         ):
             await coordinator._async_setup()
 
-        self.assertEqual(cached_stations, coordinator.stations)
+        self.assertEqual(cached_stations, coordinator._cached_stations)
 
     async def test_update_data_logs_unknown_station_codes(self) -> None:
         coordinator, _async_update_entry = make_coordinator()
@@ -259,7 +259,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                 )
             }
         )
-        coordinator.stations = expanded_stations
+        coordinator._cached_stations = expanded_stations
 
         with self.assertLogs(
             coordinator_module.LOGGER.name, level="INFO"

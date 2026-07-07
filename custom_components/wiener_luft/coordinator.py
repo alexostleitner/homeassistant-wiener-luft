@@ -51,16 +51,16 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
             config_entry=config_entry,
             always_update=False,
         )
-        self.stations: dict[str, Station] = {}
+        self._cached_stations: dict[str, Station] = {}
         self._stations_last_refresh_attempt: datetime | None = None
 
     async def _async_setup(self) -> None:
         """Load station metadata before the first measurement update."""
 
         if self.config_entry is not None:
-            self.stations = (
+            self._cached_stations = (
                 restore_station_snapshot(self.config_entry.data.get(STATION_SNAPSHOT))
-                or self.stations
+                or self._cached_stations
             )
         await self.async_refresh_stations(force=True)
 
@@ -77,16 +77,16 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
 
         self._stations_last_refresh_attempt = now
         try:
-            self.stations = await async_fetch_stations(self.hass)
+            self._cached_stations = await async_fetch_stations(self.hass)
         except IntegrationError as err:
-            if not self.stations:
+            if not self._cached_stations:
                 raise UpdateFailed("Could not load station metadata") from err
             LOGGER.warning("Could not refresh station metadata; keeping cached data")
             return False
 
         if self.config_entry is not None:
             data = dict(self.config_entry.data)
-            snapshot = build_station_snapshot(self.stations)
+            snapshot = build_station_snapshot(self._cached_stations)
             if data.get(STATION_SNAPSHOT) != snapshot:
                 LOGGER.debug(
                     "Persisting station snapshot for entry %s",
@@ -129,7 +129,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         """Build the coordinator payload from current stations and measurements."""
 
         return IntegrationData(
-            stations=self.stations,
+            stations=self._cached_stations,
             measurements=measurements,
             stale_measurements=_stale_measurement_keys(measurements, now),
         )
@@ -143,7 +143,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
     def _log_unknown_station_codes(self, measurements: SelectedMeasurements) -> None:
         """Log stations present in measurements but missing from station metadata."""
 
-        for station_code in unknown_station_codes(self.stations, measurements):
+        for station_code in unknown_station_codes(self._cached_stations, measurements):
             LOGGER.warning(
                 "Wiener Luftmessnetz CSV contains unknown station code %s that is not "
                 "present in station metadata",
@@ -166,7 +166,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
 
         new_station_codes, new_measurement_keys = availability_changes(
             previous_source_items,
-            availability_items(self.stations, measurements),
+            availability_items(self._cached_stations, measurements),
         )
         if not new_station_codes and not new_measurement_keys:
             return
