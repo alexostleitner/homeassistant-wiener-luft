@@ -20,13 +20,13 @@ from homeassistant_stubs import (
 install_homeassistant_stubs()
 
 from custom_components.wiener_luft.models import IntegrationData  # noqa: E402
-from custom_components.wiener_luft.sensor import async_setup_entry  # noqa: E402
+from custom_components.wiener_luft.sensor import (  # noqa: E402
+    _build_entities_by_measurement_key,
+    async_setup_entry,
+)
 from custom_components.wiener_luft.sensor_entity import (  # noqa: E402
     MeasurementSensor,
     build_sensor_unique_id,
-)
-from custom_components.wiener_luft.sensor_setup import (  # noqa: E402
-    _build_entities_by_measurement_key,
 )
 
 
