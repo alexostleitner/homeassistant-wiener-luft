@@ -92,12 +92,8 @@ def _choose_column(
 ) -> MeasurementColumn | None:
     invalid_value: str | int | float | None = None
     for averaging_type in MEASUREMENT_PRIORITY:
-        for column in candidates:
-            if column.averaging_type != averaging_type:
-                continue
-            raw_value = (
-                row[column.value_index] if column.value_index < len(row) else None
-            )
+        for column in _columns_for_averaging_type(candidates, averaging_type):
+            raw_value = _column_value(row, column)
             if parse_number(raw_value) is not None:
                 return column
             if invalid_value is None and not is_missing_number(raw_value):
@@ -110,6 +106,21 @@ def _choose_column(
             component,
         )
     return None
+
+
+def _column_value(row: list[str], column: MeasurementColumn) -> str | None:
+    """Return the raw CSV value for one measurement column."""
+
+    return row[column.value_index] if column.value_index < len(row) else None
+
+
+def _columns_for_averaging_type(
+    candidates: list[MeasurementColumn],
+    averaging_type: str,
+) -> list[MeasurementColumn]:
+    """Return the candidate columns for one averaging type."""
+
+    return [column for column in candidates if column.averaging_type == averaging_type]
 
 
 def _parse_lumes_header(
