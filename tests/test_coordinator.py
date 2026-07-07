@@ -24,10 +24,13 @@ install_homeassistant_stubs()
 from custom_components.wiener_luft import (  # noqa: E402
     coordinator as coordinator_module,
 )
-from custom_components.wiener_luft.coordinator import (  # noqa: E402
-    IntegrationCoordinator,
-    IntegrationData,
+from custom_components.wiener_luft import exceptions as exceptions_module  # noqa: E402
+from custom_components.wiener_luft import fetch as fetch_module  # noqa: E402
+from custom_components.wiener_luft.const import (  # noqa: E402
+    MEASUREMENTS_URL,
+    STATIONS_URL,
 )
+from custom_components.wiener_luft.models import IntegrationData  # noqa: E402
 
 FIXTURE_DIR = Path(__file__).with_name("fixtures")
 LUMES_FIXTURE = FIXTURE_DIR / "lumes_sanitized.csv"
@@ -38,14 +41,16 @@ def make_response(payload: bytes):
     return nullcontext(io.BytesIO(payload))
 
 
-def make_coordinator(*, data=None, options=None) -> tuple[IntegrationCoordinator, Mock]:
+def make_coordinator(
+    *, data=None, options=None
+) -> tuple[coordinator_module.IntegrationCoordinator, Mock]:
     async_update_entry = Mock(
         side_effect=lambda entry, **changes: setattr(entry, "data", changes["data"])
     )
     hass = make_hass(
         config_entries=types.SimpleNamespace(async_update_entry=async_update_entry)
     )
-    coordinator = IntegrationCoordinator(
+    coordinator = coordinator_module.IntegrationCoordinator(
         hass,
         make_entry(data=data, options=options),
     )
@@ -90,7 +95,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(
-                coordinator_module,
+                fetch_module,
                 "urlopen",
                 return_value=make_response(STATION_PAYLOAD),
             ) as urlopen_mock,
@@ -113,9 +118,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(
-                coordinator_module,
-                "urlopen",
-                side_effect=RuntimeError("network down"),
+                fetch_module, "urlopen", side_effect=RuntimeError("network down")
             ),
             patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
             self.assertRaises(coordinator_module.UpdateFailed),
@@ -136,9 +139,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(
-                coordinator_module,
-                "urlopen",
-                side_effect=RuntimeError("network down"),
+                fetch_module, "urlopen", side_effect=RuntimeError("network down")
             ),
             patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
         ):
@@ -152,9 +153,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(
-                coordinator_module,
-                "urlopen",
-                return_value=make_response(STATION_PAYLOAD),
+                fetch_module, "urlopen", return_value=make_response(STATION_PAYLOAD)
             ),
             patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
         ):
@@ -185,9 +184,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(
-                coordinator_module,
-                "urlopen",
-                side_effect=RuntimeError("network down"),
+                fetch_module, "urlopen", side_effect=RuntimeError("network down")
             ),
             patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
         ):
@@ -200,7 +197,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(
-                coordinator_module,
+                fetch_module,
                 "urlopen",
                 side_effect=[
                     make_response(STATION_PAYLOAD),
@@ -295,7 +292,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(
-                coordinator_module,
+                fetch_module,
                 "urlopen",
                 side_effect=[
                     make_response(STATION_PAYLOAD),
@@ -337,7 +334,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(
-                coordinator_module,
+                fetch_module,
                 "urlopen",
                 side_effect=[
                     make_response(STATION_PAYLOAD),
@@ -444,55 +441,43 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_async_fetch_stations_raises_on_invalid_response(self) -> None:
         with (
-            patch.object(coordinator_module, "_fetch_payload", return_value=b"{}"),
-            patch.object(coordinator_module, "parse_station_geojson", return_value={}),
-            self.assertRaises(coordinator_module.FlowFetchError) as err,
+            patch.object(fetch_module, "_fetch_payload", return_value=b"{}"),
+            patch.object(fetch_module, "parse_station_geojson", return_value={}),
+            self.assertRaises(exceptions_module.FlowFetchError) as err,
         ):
-            await coordinator_module.async_fetch_stations(make_hass())
+            await fetch_module.async_fetch_stations(make_hass())
 
         self.assertEqual("invalid_response", err.exception.reason)
-        self.assertEqual(
-            {"url": coordinator_module.STATIONS_URL},
-            err.exception.placeholders,
-        )
+        self.assertEqual({"url": STATIONS_URL}, err.exception.placeholders)
 
     async def test_async_fetch_measurements_wraps_parser_error(self) -> None:
         with (
-            patch.object(coordinator_module, "_fetch_payload", return_value=b"{}"),
+            patch.object(fetch_module, "_fetch_payload", return_value=b"{}"),
             patch.object(
-                coordinator_module,
-                "parse_lumes_csv",
-                side_effect=ValueError("bad csv"),
+                fetch_module, "parse_lumes_csv", side_effect=ValueError("bad csv")
             ),
-            self.assertRaises(coordinator_module.FlowFetchError) as err,
+            self.assertRaises(exceptions_module.FlowFetchError) as err,
         ):
-            await coordinator_module.async_fetch_measurements(make_hass())
+            await fetch_module.async_fetch_measurements(make_hass())
 
         self.assertEqual("invalid_response", err.exception.reason)
-        self.assertEqual(
-            {"url": coordinator_module.MEASUREMENTS_URL},
-            err.exception.placeholders,
-        )
+        self.assertEqual({"url": MEASUREMENTS_URL}, err.exception.placeholders)
 
     async def test_async_fetch_reraises_flow_fetch_error(self) -> None:
         for fetch, expected_url in (
-            (coordinator_module.async_fetch_stations, coordinator_module.STATIONS_URL),
-            (
-                coordinator_module.async_fetch_measurements,
-                coordinator_module.MEASUREMENTS_URL,
-            ),
+            (fetch_module.async_fetch_stations, STATIONS_URL),
+            (fetch_module.async_fetch_measurements, MEASUREMENTS_URL),
         ):
             with self.subTest(fetch=fetch.__name__):
                 with (
                     patch.object(
-                        coordinator_module,
+                        fetch_module,
                         "_fetch_payload",
-                        side_effect=coordinator_module.FlowFetchError(
-                            "cannot_connect",
-                            {"url": expected_url},
+                        side_effect=exceptions_module.FlowFetchError(
+                            "cannot_connect", {"url": expected_url}
                         ),
                     ),
-                    self.assertRaises(coordinator_module.FlowFetchError) as err,
+                    self.assertRaises(exceptions_module.FlowFetchError) as err,
                 ):
                     await fetch(make_hass())
                 self.assertEqual("cannot_connect", err.exception.reason)

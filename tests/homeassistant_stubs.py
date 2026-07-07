@@ -277,7 +277,7 @@ def make_data(
     station=None,
     stale_measurements: tuple[tuple[str, str], ...] = (),
 ):
-    from custom_components.wiener_luft.coordinator import IntegrationData
+    from custom_components.wiener_luft.models import IntegrationData
 
     station = station or make_station()
     return IntegrationData(

@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict
 from datetime import datetime
-from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -14,23 +12,19 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    HTTP_TIMEOUT_SECONDS,
     MEASUREMENT_UPDATE_INTERVAL,
-    MEASUREMENTS_URL,
     NAME,
     SOURCE_SNAPSHOT,
     STALE_AFTER,
     STATION_SNAPSHOT,
     STATION_UPDATE_INTERVAL,
-    STATIONS_URL,
 )
-from .exceptions import FlowFetchError, IntegrationError
-from .fetch import async_fetch_parsed_payload
+from .exceptions import IntegrationError
+from .fetch import async_fetch_measurements, async_fetch_stations
 from .measurements import MEASUREMENT_SPECS
-from .measurements_parser import MeasurementKey, SelectedMeasurements, parse_lumes_csv
+from .measurements_parser import MeasurementKey, SelectedMeasurements
 from .models import IntegrationData, SourceSnapshot
 from .station import Station
-from .stations_parser import parse_station_geojson
 
 LOGGER = logging.getLogger(__name__)
 type SourceItems = tuple[set[str], set[MeasurementKey]]
@@ -290,41 +284,4 @@ def _stale_measurements(
         key
         for key, reading in measurements.items()
         if reading.measured_at is not None and now - reading.measured_at > STALE_AFTER
-    )
-
-
-def _fetch_payload(url: str) -> bytes:
-    """Fetch one payload from the configured source URL."""
-
-    try:
-        with urlopen(url, timeout=HTTP_TIMEOUT_SECONDS) as response:
-            return response.read()
-    except (HTTPError, URLError, TimeoutError) as err:
-        raise FlowFetchError("cannot_connect", {"url": url}) from err
-
-
-async def async_fetch_stations(hass: HomeAssistant) -> dict[str, Station]:
-    """Fetch and parse station metadata."""
-
-    stations = await async_fetch_parsed_payload(
-        hass,
-        url=STATIONS_URL,
-        fetch_payload=_fetch_payload,
-        parser=parse_station_geojson,
-    )
-    if not stations:
-        raise FlowFetchError("invalid_response", {"url": STATIONS_URL})
-    return stations
-
-
-async def async_fetch_measurements(
-    hass: HomeAssistant,
-) -> SelectedMeasurements:
-    """Fetch and parse current measurements."""
-
-    return await async_fetch_parsed_payload(
-        hass,
-        url=MEASUREMENTS_URL,
-        fetch_payload=_fetch_payload,
-        parser=parse_lumes_csv,
     )

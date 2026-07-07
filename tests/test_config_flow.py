@@ -46,11 +46,14 @@ from custom_components.wiener_luft import (  # noqa: E402
 from custom_components.wiener_luft import (  # noqa: E402
     coordinator as coordinator_module,
 )
+from custom_components.wiener_luft import exceptions as exceptions_module  # noqa: E402
+from custom_components.wiener_luft import fetch as fetch_module  # noqa: E402
 from custom_components.wiener_luft.const import (  # noqa: E402
     MEASUREMENTS_URL,
     SOURCE_SNAPSHOT,
     STATIONS_URL,
 )
+from custom_components.wiener_luft.models import IntegrationData  # noqa: E402
 
 
 def read_selector(schema):
@@ -60,7 +63,7 @@ def read_selector(schema):
 
 
 def make_flow_data(stations, measurements):
-    return coordinator_module.IntegrationData(
+    return IntegrationData(
         stations=stations,
         measurements=measurements,
     )
@@ -484,13 +487,13 @@ class OptionsFlowTest(unittest.TestCase):
     def test_fetch_payload_raises_connect_error(self) -> None:
         with (
             patch.object(
-                coordinator_module,
+                fetch_module,
                 "urlopen",
                 side_effect=URLError("offline"),
             ),
-            self.assertRaises(coordinator_module.FlowFetchError) as err,
+            self.assertRaises(exceptions_module.FlowFetchError) as err,
         ):
-            coordinator_module._fetch_payload("https://example.test")
+            fetch_module._fetch_payload("https://example.test")
 
         self.assertEqual("cannot_connect", err.exception.reason)
         self.assertEqual({"url": "https://example.test"}, err.exception.placeholders)
@@ -498,13 +501,13 @@ class OptionsFlowTest(unittest.TestCase):
     def test_fetch_measurements_invalid_response_includes_url(self) -> None:
         with (
             patch.object(
-                coordinator_module,
+                fetch_module,
                 "_fetch_payload",
                 return_value=b"not a valid csv payload",
             ),
-            self.assertRaises(coordinator_module.FlowFetchError) as err,
+            self.assertRaises(exceptions_module.FlowFetchError) as err,
         ):
-            asyncio.run(coordinator_module.async_fetch_measurements(make_hass()))
+            asyncio.run(fetch_module.async_fetch_measurements(make_hass()))
 
         self.assertEqual("invalid_response", err.exception.reason)
         self.assertEqual({"url": MEASUREMENTS_URL}, err.exception.placeholders)

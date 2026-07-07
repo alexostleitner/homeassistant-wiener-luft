@@ -19,9 +19,7 @@ from homeassistant_stubs import (
 
 install_homeassistant_stubs()
 
-from custom_components.wiener_luft.coordinator import (  # noqa: E402
-    IntegrationData,
-)
+from custom_components.wiener_luft.models import IntegrationData  # noqa: E402
 from custom_components.wiener_luft.sensor import (  # noqa: E402
     MeasurementSensor,
     _build_entities,
