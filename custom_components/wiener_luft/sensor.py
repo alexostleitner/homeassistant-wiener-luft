@@ -108,22 +108,7 @@ def _sync_entity_registry(
     }
     registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if registry_entry.domain != "sensor" or not registry_entry.unique_id.startswith(
-            f"{DOMAIN}_"
-        ):
-            continue
-        if registry_entry.unique_id in selected_unique_ids:
-            if registry_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION:
-                registry.async_update_entity(
-                    registry_entry.entity_id,
-                    disabled_by=None,
-                )
-            continue
-        if registry_entry.disabled_by is None:
-            registry.async_update_entity(
-                registry_entry.entity_id,
-                disabled_by=er.RegistryEntryDisabler.INTEGRATION,
-            )
+        _sync_registry_entry(registry, registry_entry, selected_unique_ids)
 
 
 def _build_entities_by_measurement_key(
@@ -166,3 +151,28 @@ def _build_entities_by_measurement_key(
                 coordinator, station, measurement_code, spec
             )
     return entities
+
+
+def _sync_registry_entry(
+    registry: er.EntityRegistry,
+    registry_entry: er.RegistryEntry,
+    selected_unique_ids: set[str],
+) -> None:
+    """Enable or disable one registry entry to match explicit selections."""
+
+    if registry_entry.domain != "sensor" or not registry_entry.unique_id.startswith(
+        f"{DOMAIN}_"
+    ):
+        return
+    if registry_entry.unique_id in selected_unique_ids:
+        if registry_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION:
+            registry.async_update_entity(
+                registry_entry.entity_id,
+                disabled_by=None,
+            )
+        return
+    if registry_entry.disabled_by is None:
+        registry.async_update_entity(
+            registry_entry.entity_id,
+            disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+        )
