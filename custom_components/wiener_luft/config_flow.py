@@ -33,26 +33,6 @@ class SavedPreferences(TypedDict):
     _source_snapshot: SourceSnapshot
 
 
-def _build_saved_preferences(
-    integration_data: IntegrationData,
-    selected_stations: list[str],
-    selected_measurements: list[str],
-) -> SavedPreferences:
-    """Return the payload saved in config entry data or options."""
-
-    return SavedPreferences(
-        stations=selected_stations,
-        measurements=selected_measurements,
-        _source_snapshot=build_availability_snapshot(
-            integration_data.stations,
-            integration_data.measurements,
-        ),
-    )
-
-
-# Flows
-
-
 class IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle setup via the UI."""
 
@@ -70,6 +50,57 @@ class IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Return the options flow for this config entry."""
 
         return IntegrationOptionsFlow()
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle the station selection step."""
+
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
+
+        result = await self._async_load_data_or_abort()
+        if result is not None:
+            return result
+
+        if user_input is None:
+            return self._show_station_form()
+
+        self._selected_stations = list(user_input[CONF_STATIONS])
+        if not self._selected_stations:
+            return self._show_station_form(errors={"base": "station_required"})
+
+        return await self.async_step_measurements()
+
+    async def async_step_measurements(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle the measurement selection step."""
+
+        result = await self._async_load_data_or_abort()
+        if result is not None:
+            return result
+
+        assert self._selected_stations
+
+        if user_input is None:
+            return await self._show_measurement_form()
+
+        selected_measurements = list(user_input[CONF_MEASUREMENTS])
+        if not selected_measurements:
+            return await self._show_measurement_form(
+                errors={"base": "measurement_required"}
+            )
+
+        assert self._data is not None
+        return self.async_create_entry(
+            title=NAME,
+            data=_build_saved_preferences(
+                self._data,
+                self._selected_stations,
+                selected_measurements,
+            ),
+        )
 
     async def _async_load_data_or_abort(self) -> ConfigFlowResult | None:
         """Load current source data or abort with the existing fetch errors."""
@@ -137,13 +168,20 @@ class IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors or {},
         )
 
-    async def async_step_user(
+
+class IntegrationOptionsFlow(OptionsFlowWithReload):
+    """Handle options for an existing config entry."""
+
+    def __init__(self) -> None:
+        """Initialize options flow state."""
+
+        self._data: IntegrationData | None = None
+        self._selected_stations: list[str] = []
+
+    async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the station selection step."""
-
-        await self.async_set_unique_id(DOMAIN)
-        self._abort_if_unique_id_configured()
+        """Handle the station selection step for options."""
 
         result = await self._async_load_data_or_abort()
         if result is not None:
@@ -161,7 +199,7 @@ class IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_measurements(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the measurement selection step."""
+        """Handle the measurement selection step for options."""
 
         result = await self._async_load_data_or_abort()
         if result is not None:
@@ -180,23 +218,12 @@ class IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         assert self._data is not None
         return self.async_create_entry(
-            title=NAME,
             data=_build_saved_preferences(
                 self._data,
                 self._selected_stations,
                 selected_measurements,
             ),
         )
-
-
-class IntegrationOptionsFlow(OptionsFlowWithReload):
-    """Handle options for an existing config entry."""
-
-    def __init__(self) -> None:
-        """Initialize options flow state."""
-
-        self._data: IntegrationData | None = None
-        self._selected_stations: list[str] = []
 
     def _saved_preferences(self) -> SavedPreferences | None:
         """Return merged saved preferences when both selections are present."""
@@ -284,49 +311,19 @@ class IntegrationOptionsFlow(OptionsFlowWithReload):
             errors=errors or {},
         )
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Handle the station selection step for options."""
 
-        result = await self._async_load_data_or_abort()
-        if result is not None:
-            return result
+def _build_saved_preferences(
+    integration_data: IntegrationData,
+    selected_stations: list[str],
+    selected_measurements: list[str],
+) -> SavedPreferences:
+    """Return the payload saved in config entry data or options."""
 
-        if user_input is None:
-            return self._show_station_form()
-
-        self._selected_stations = list(user_input[CONF_STATIONS])
-        if not self._selected_stations:
-            return self._show_station_form(errors={"base": "station_required"})
-
-        return await self.async_step_measurements()
-
-    async def async_step_measurements(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Handle the measurement selection step for options."""
-
-        result = await self._async_load_data_or_abort()
-        if result is not None:
-            return result
-
-        assert self._selected_stations
-
-        if user_input is None:
-            return await self._show_measurement_form()
-
-        selected_measurements = list(user_input[CONF_MEASUREMENTS])
-        if not selected_measurements:
-            return await self._show_measurement_form(
-                errors={"base": "measurement_required"}
-            )
-
-        assert self._data is not None
-        return self.async_create_entry(
-            data=_build_saved_preferences(
-                self._data,
-                self._selected_stations,
-                selected_measurements,
-            ),
-        )
+    return SavedPreferences(
+        stations=selected_stations,
+        measurements=selected_measurements,
+        _source_snapshot=build_availability_snapshot(
+            integration_data.stations,
+            integration_data.measurements,
+        ),
+    )
