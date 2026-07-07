@@ -102,24 +102,43 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         """Fetch current measurements and combine them with cached stations."""
 
         station_refresh_succeeded = await self.async_refresh_stations()
+        measurements = await self._async_fetch_measurements()
+        if station_refresh_succeeded:
+            self._log_source_changes(measurements)
+        return self._build_integration_data(
+            measurements,
+            now=dt_util.utcnow(),
+        )
+
+    async def _async_fetch_measurements(self) -> SelectedMeasurements:
+        """Fetch current measurements with the coordinator error boundary."""
 
         try:
-            measurements = await async_fetch_measurements(self.hass)
+            return await async_fetch_measurements(self.hass)
         except IntegrationError as err:
             raise UpdateFailed(
                 "Could not update Wiener Luftmessnetz measurements"
             ) from err
 
-        if station_refresh_succeeded:
-            self._log_unknown_station_codes(measurements)
-            self._log_new_source_items(measurements)
+    def _build_integration_data(
+        self,
+        measurements: SelectedMeasurements,
+        *,
+        now: datetime,
+    ) -> IntegrationData:
+        """Build the coordinator payload from current stations and measurements."""
 
-        now = dt_util.utcnow()
         return IntegrationData(
             stations=self.stations,
             measurements=measurements,
             stale_measurements=_stale_measurement_keys(measurements, now),
         )
+
+    def _log_source_changes(self, measurements: SelectedMeasurements) -> None:
+        """Log source differences after a successful station refresh."""
+
+        self._log_unknown_station_codes(measurements)
+        self._log_new_source_items(measurements)
 
     def _log_unknown_station_codes(self, measurements: SelectedMeasurements) -> None:
         """Log stations present in measurements but missing from station metadata."""
