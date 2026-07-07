@@ -156,10 +156,10 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         if self.config_entry is None:
             return
 
-        current_preferences = dict(self.config_entry.data)
-        current_preferences.update(self.config_entry.options)
+        merged_entry_data = dict(self.config_entry.data)
+        merged_entry_data.update(self.config_entry.options)
         previous_source_items = restore_availability_snapshot(
-            current_preferences.get(SOURCE_SNAPSHOT)
+            merged_entry_data.get(SOURCE_SNAPSHOT)
         )
         if previous_source_items is None:
             return
