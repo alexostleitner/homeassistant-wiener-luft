@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict
 from datetime import datetime
 
 from homeassistant.config_entries import ConfigEntry
@@ -21,13 +20,17 @@ from .const import (
 )
 from .exceptions import IntegrationError
 from .fetch import async_fetch_measurements, async_fetch_stations
-from .measurements import MEASUREMENT_SPECS
 from .measurements_parser import MeasurementKey, SelectedMeasurements
-from .models import IntegrationData, SourceSnapshot
+from .models import IntegrationData
+from .snapshots import (
+    build_availability_snapshot,
+    build_station_snapshot,
+    restore_availability_snapshot,
+    restore_station_snapshot,
+)
 from .station import Station
 
 LOGGER = logging.getLogger(__name__)
-type SourceItems = tuple[set[str], set[MeasurementKey]]
 
 
 class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
@@ -52,7 +55,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
 
         if self.config_entry is not None:
             self.stations = (
-                _parse_station_snapshot(self.config_entry.data.get(STATION_SNAPSHOT))
+                restore_station_snapshot(self.config_entry.data.get(STATION_SNAPSHOT))
                 or self.stations
             )
         await self.async_refresh_stations(force=True)
@@ -79,7 +82,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
 
         if self.config_entry is not None:
             data = dict(self.config_entry.data)
-            snapshot = _station_snapshot(self.stations)
+            snapshot = build_station_snapshot(self.stations)
             if data.get(STATION_SNAPSHOT) != snapshot:
                 LOGGER.debug(
                     "Persisting station snapshot for entry %s",
@@ -136,16 +139,18 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
 
         current_preferences = dict(self.config_entry.data)
         current_preferences.update(self.config_entry.options)
-        previous_source_items = _parse_source_snapshot(
+        previous_source_items = restore_availability_snapshot(
             current_preferences.get(SOURCE_SNAPSHOT)
         )
         if previous_source_items is None:
             return
 
         previous_station_codes, previous_measurement_keys = previous_source_items
-        current_station_codes, current_measurement_keys = _source_items(
-            self.stations, measurements
+        current_availability_items = restore_availability_snapshot(
+            build_availability_snapshot(self.stations, measurements)
         )
+        assert current_availability_items is not None
+        current_station_codes, current_measurement_keys = current_availability_items
         new_station_codes = current_station_codes - previous_station_codes
         new_measurement_keys = current_measurement_keys - previous_measurement_keys
         if not new_station_codes and not new_measurement_keys:
@@ -158,120 +163,6 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
             len(new_station_codes),
             len(new_measurement_keys),
         )
-
-
-def _parse_source_snapshot(value: object) -> SourceItems | None:
-    """Parse the stored source snapshot from config entry data or options."""
-
-    if not isinstance(value, dict):
-        return None
-
-    station_codes = value.get("station_codes")
-    measurement_keys = value.get("measurement_keys")
-    if not isinstance(station_codes, list) or not isinstance(measurement_keys, list):
-        return None
-
-    if any(not isinstance(item, (list, tuple)) for item in measurement_keys):
-        return None
-
-    previous_station_codes = set(station_codes)
-    previous_measurement_keys = {tuple(item) for item in measurement_keys}
-    if any(
-        not isinstance(station_code, str) for station_code in previous_station_codes
-    ):
-        return None
-    if any(
-        len(item) != 2 or not isinstance(item[0], str) or not isinstance(item[1], str)
-        for item in previous_measurement_keys
-    ):
-        return None
-
-    return previous_station_codes, previous_measurement_keys
-
-
-def _source_items(
-    stations: dict[str, Station],
-    measurements: SelectedMeasurements,
-) -> SourceItems:
-    """Return the currently available station and measurement keys."""
-
-    current_station_codes = set(stations)
-    current_measurement_keys = {
-        (station_code, component)
-        for (station_code, component), reading in measurements.items()
-        if station_code in stations
-        and component in MEASUREMENT_SPECS
-        and reading.value is not None
-        and reading.measurement_type is not None
-    }
-    return current_station_codes, current_measurement_keys
-
-
-def build_source_snapshot(
-    stations: dict[str, Station],
-    measurements: SelectedMeasurements,
-) -> SourceSnapshot:
-    """Serialize the currently available station and measurement keys."""
-
-    station_codes, measurement_keys = _source_items(stations, measurements)
-    return SourceSnapshot(
-        station_codes=sorted(station_codes),
-        measurement_keys=[list(item) for item in sorted(measurement_keys)],
-    )
-
-
-def _station_snapshot(stations: dict[str, Station]) -> dict[str, dict[str, object]]:
-    """Serialize station metadata for persistence."""
-
-    return {code: asdict(station) for code, station in sorted(stations.items())}
-
-
-def _parse_station_snapshot(value: object) -> dict[str, Station] | None:
-    """Parse a persisted station snapshot."""
-
-    if not isinstance(value, dict):
-        return None
-
-    stations: dict[str, Station] = {}
-    for code, station_data in value.items():
-        station = _parse_station_snapshot_item(code, station_data)
-        if station is None:
-            return None
-        stations[code] = station
-    return stations
-
-
-def _parse_station_snapshot_item(code: object, value: object) -> Station | None:
-    """Parse one persisted station entry."""
-
-    if not isinstance(code, str) or not isinstance(value, dict):
-        return None
-
-    stored_code = value.get("code", code)
-    name = value.get("name")
-    district = value.get("district")
-    latitude = value.get("latitude")
-    longitude = value.get("longitude")
-    station_url = value.get("station_url")
-    if stored_code != code or not isinstance(name, str):
-        return None
-    if district is not None and not isinstance(district, int):
-        return None
-    if latitude is not None and not isinstance(latitude, (int, float)):
-        return None
-    if longitude is not None and not isinstance(longitude, (int, float)):
-        return None
-    if station_url is not None and not isinstance(station_url, str):
-        return None
-
-    return Station(
-        code=code,
-        name=name,
-        district=district,
-        latitude=float(latitude) if latitude is not None else None,
-        longitude=float(longitude) if longitude is not None else None,
-        station_url=station_url,
-    )
 
 
 def _stale_measurements(

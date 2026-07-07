@@ -21,8 +21,8 @@ from .config_flow_stations import (
     station_defaults,
 )
 from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN, NAME
-from .coordinator import build_source_snapshot
 from .models import IntegrationData, SourceSnapshot
+from .snapshots import build_availability_snapshot
 
 
 class SavedPreferences(TypedDict):
@@ -43,7 +43,7 @@ def _build_saved_preferences(
     return SavedPreferences(
         stations=selected_stations,
         measurements=selected_measurements,
-        _source_snapshot=build_source_snapshot(
+        _source_snapshot=build_availability_snapshot(
             integration_data.stations,
             integration_data.measurements,
         ),

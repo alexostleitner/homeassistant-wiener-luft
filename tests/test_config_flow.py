@@ -43,11 +43,9 @@ from custom_components.wiener_luft import (  # noqa: E402
 from custom_components.wiener_luft import (  # noqa: E402
     config_flow_data as config_flow_data_module,
 )
-from custom_components.wiener_luft import (  # noqa: E402
-    coordinator as coordinator_module,
-)
 from custom_components.wiener_luft import exceptions as exceptions_module  # noqa: E402
 from custom_components.wiener_luft import fetch as fetch_module  # noqa: E402
+from custom_components.wiener_luft import snapshots as snapshots_module  # noqa: E402
 from custom_components.wiener_luft.const import (  # noqa: E402
     MEASUREMENTS_URL,
     SOURCE_SNAPSHOT,
@@ -290,7 +288,7 @@ class ConfigFlowTest(unittest.TestCase):
             {
                 "stations": ["STA1"],
                 "measurements": ["PM25"],
-                SOURCE_SNAPSHOT: coordinator_module.build_source_snapshot(
+                SOURCE_SNAPSHOT: snapshots_module.build_availability_snapshot(
                     stations,
                     measurements,
                 ),
@@ -468,7 +466,7 @@ class OptionsFlowTest(unittest.TestCase):
             {
                 "stations": ["STA1"],
                 "measurements": ["PM25"],
-                SOURCE_SNAPSHOT: coordinator_module.build_source_snapshot(
+                SOURCE_SNAPSHOT: snapshots_module.build_availability_snapshot(
                     stations,
                     measurements,
                 ),

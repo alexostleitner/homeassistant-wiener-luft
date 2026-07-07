@@ -26,6 +26,7 @@ from custom_components.wiener_luft import (  # noqa: E402
 )
 from custom_components.wiener_luft import exceptions as exceptions_module  # noqa: E402
 from custom_components.wiener_luft import fetch as fetch_module  # noqa: E402
+from custom_components.wiener_luft import snapshots as snapshots_module  # noqa: E402
 from custom_components.wiener_luft.const import (  # noqa: E402
     MEASUREMENTS_URL,
     STATIONS_URL,
@@ -82,13 +83,13 @@ STATION_PAYLOAD = json.dumps(
 
 
 class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
-    def test_parse_source_snapshot_rejects_invalid_shapes(self) -> None:
+    def test_restore_availability_snapshot_rejects_invalid_shapes(self) -> None:
         for value in (
             {"station_codes": ["STA1"], "measurement_keys": ["STA1"]},
             {"station_codes": [1], "measurement_keys": [["STA1", "PM25"]]},
         ):
             with self.subTest(value=value):
-                self.assertIsNone(coordinator_module._parse_source_snapshot(value))
+                self.assertIsNone(snapshots_module.restore_availability_snapshot(value))
 
     async def test_refresh_stations_caches_within_one_day(self) -> None:
         coordinator, _async_update_entry = make_coordinator()
@@ -161,7 +162,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(refreshed)
         self.assertEqual(
-            coordinator_module._station_snapshot(coordinator.stations),
+            snapshots_module.build_station_snapshot(coordinator.stations),
             coordinator.config_entry.data[coordinator_module.STATION_SNAPSHOT],
         )
         async_update_entry.assert_called_once()
@@ -177,7 +178,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                 station_url="https://example.test/stations/sta1",
             )
         }
-        snapshot = coordinator_module._station_snapshot(cached_stations)
+        snapshot = snapshots_module.build_station_snapshot(cached_stations)
         coordinator, _async_update_entry = make_coordinator(
             data={coordinator_module.STATION_SNAPSHOT: snapshot}
         )
@@ -251,7 +252,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         coordinator, _async_update_entry = make_coordinator(
             data={
                 coordinator_module.SOURCE_SNAPSHOT: (
-                    coordinator_module.build_source_snapshot(
+                    snapshots_module.build_availability_snapshot(
                         base_stations,
                         base_measurements,
                     )
@@ -271,7 +272,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         coordinator.config_entry.options = {
             coordinator_module.SOURCE_SNAPSHOT: (
-                coordinator_module.build_source_snapshot(
+                snapshots_module.build_availability_snapshot(
                     expanded_stations,
                     expanded_measurements,
                 )
@@ -356,13 +357,13 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             {"station_codes": ["STA1"], "measurement_keys": [["STA1", 25]]},
         ):
             with self.subTest(parser="source", value=value):
-                self.assertIsNone(coordinator_module._parse_source_snapshot(value))
+                self.assertIsNone(snapshots_module.restore_availability_snapshot(value))
 
         for value in (None, {"STA1": {"name": 123}}):
             with self.subTest(parser="station", value=value):
-                self.assertIsNone(coordinator_module._parse_station_snapshot(value))
+                self.assertIsNone(snapshots_module.restore_station_snapshot(value))
 
-    def test_parse_station_snapshot_item_rejects_invalid_types(self) -> None:
+    def test_restore_station_snapshot_rejects_invalid_entry_types(self) -> None:
         base = {
             "code": "STA1",
             "name": "Station Alpha",
@@ -380,9 +381,10 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         ):
             with self.subTest(changes=changes):
                 self.assertIsNone(
-                    coordinator_module._parse_station_snapshot_item(
-                        "STA1",
-                        base | changes,
+                    snapshots_module.restore_station_snapshot(
+                        {
+                            "STA1": base | changes,
+                        }
                     )
                 )
 
@@ -408,8 +410,8 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             stations,
-            coordinator_module._parse_station_snapshot(
-                coordinator_module._station_snapshot(stations)
+            snapshots_module.restore_station_snapshot(
+                snapshots_module.build_station_snapshot(stations)
             ),
         )
 
@@ -419,7 +421,7 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                 "station_codes": ["STA1"],
                 "measurement_keys": [["STA1", "PM25"]],
             },
-            coordinator_module.build_source_snapshot(
+            snapshots_module.build_availability_snapshot(
                 {
                     "STA1": make_station(
                         code="STA1",
