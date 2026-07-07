@@ -17,7 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import slugify
 
-from .const import CALM_WIND_SPEED_MPS, DOMAIN
+from .const import DOMAIN
 from .coordinator import IntegrationCoordinator
 from .measurements import (
     DISPLAY_PRECISION_BY_UNIT,
@@ -25,6 +25,7 @@ from .measurements import (
     MeasurementSpec,
 )
 from .measurements_parser import SelectedMetric
+from .sensor_state import measurement_availability_state, measurement_native_value
 from .station import (
     Station,
     station_device_info,
@@ -74,12 +75,11 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        reading = self._reading
-        if reading is None:
-            return None
-        if self._component == "WR" and self._wind_speed_is_calm:
-            return None
-        return reading.value
+        return measurement_native_value(
+            self._component,
+            self._reading,
+            self._wind_speed_reading,
+        )
 
     @property
     def native_unit_of_measurement(self) -> str:
@@ -115,33 +115,19 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def _availability_state(self) -> str:
-        reading = self._reading
-        if not self.coordinator.last_update_success:
-            return "coordinator_unavailable"
-        if reading is None or reading.value is None:
-            return "missing"
-        if (
+        return measurement_availability_state(
+            self.coordinator.last_update_success,
+            self._reading,
             self.coordinator.data is not None
             and (self._station_code, self._component)
-            in self.coordinator.data.stale_measurements
-        ):
-            return "stale"
-        return "available"
+            in self.coordinator.data.stale_measurements,
+        )
 
     @property
-    def _wind_speed_is_calm(self) -> bool:
+    def _wind_speed_reading(self) -> SelectedMetric | None:
         if self.coordinator.data is None:
-            return False
-
-        wind_speed = self.coordinator.data.measurements.get((self._station_code, "WG"))
-        if wind_speed is None or wind_speed.value is None:
-            return False
-
-        if wind_speed.unit == "m/s":
-            return wind_speed.value < CALM_WIND_SPEED_MPS
-        if wind_speed.unit == "km/h":
-            return wind_speed.value / 3.6 < CALM_WIND_SPEED_MPS
-        return False
+            return None
+        return self.coordinator.data.measurements.get((self._station_code, "WG"))
 
     def _log_unit_change(self) -> None:
         if self.hass is None or self.entity_id is None:

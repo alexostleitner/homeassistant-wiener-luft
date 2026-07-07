@@ -355,7 +355,7 @@ class MeasurementSensorTest(unittest.TestCase):
 
         self.assertIsNone(sensor.native_value)
 
-    def test_wind_speed_is_calm_checks_only_supported_units(self) -> None:
+    def test_wind_direction_uses_only_supported_wind_speed_units(self) -> None:
         station = make_station()
         coordinator = make_coordinator(
             make_data(
@@ -367,7 +367,7 @@ class MeasurementSensorTest(unittest.TestCase):
             )
         )
         sensor = MeasurementSensor(coordinator, station, "WR", MEASUREMENT_SPECS["WR"])
-        self.assertTrue(sensor._wind_speed_is_calm)
+        self.assertIsNone(sensor.native_value)
 
         coordinator.data = make_data(
             {
@@ -376,7 +376,7 @@ class MeasurementSensorTest(unittest.TestCase):
             },
             station=station,
         )
-        self.assertFalse(sensor._wind_speed_is_calm)
+        self.assertEqual(180.0, sensor.native_value)
 
     def test_extra_state_attributes_skip_interval_without_measurement_type(
         self,
