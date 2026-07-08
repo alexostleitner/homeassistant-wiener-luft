@@ -48,6 +48,12 @@ select = ["E", "F", "I", "B", "UP", "C90", "SIM", "RUF", "PERF"]
 [tool.ruff.lint.mccabe]
 max-complexity = 6
 
+[tool.complexipy]
+paths = ["custom_components", "tests"]
+max-complexity-allowed = 8
+check-script = false
+ignore-complexity = false
+
 [tool.vulture]
 exclude = ["tests/homeassistant_stubs.py"]
 ignore_names = ["VERSION", "async_get_options_flow", "_attr_*", "_config_entry"]
