@@ -11,7 +11,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .availability import (
-    availability_changes,
     availability_items,
     unknown_station_codes,
 )
@@ -154,10 +153,12 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         if previous_source_items is None:
             return
 
-        new_station_codes, new_measurement_keys = availability_changes(
-            previous_source_items,
-            availability_items(self._cached_stations, measurements),
+        current_station_codes, current_measurement_keys = availability_items(
+            self._cached_stations, measurements
         )
+        previous_station_codes, previous_measurement_keys = previous_source_items
+        new_station_codes = current_station_codes - previous_station_codes
+        new_measurement_keys = current_measurement_keys - previous_measurement_keys
         if not new_station_codes and not new_measurement_keys:
             return
 

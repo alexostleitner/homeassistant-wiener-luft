@@ -28,20 +28,6 @@ def availability_items(
     )
 
 
-def availability_changes(
-    previous: AvailabilityItems,
-    current: AvailabilityItems,
-) -> AvailabilityItems:
-    """Return newly added station and measurement keys."""
-
-    previous_station_codes, previous_measurement_keys = previous
-    current_station_codes, current_measurement_keys = current
-    return (
-        current_station_codes - previous_station_codes,
-        current_measurement_keys - previous_measurement_keys,
-    )
-
-
 def unknown_station_codes(
     stations: dict[str, Station],
     measurements: SelectedMeasurements,
