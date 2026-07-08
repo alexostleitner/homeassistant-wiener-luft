@@ -21,9 +21,24 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.39.9",
+    "complexipy>=6.0.1",
     "coverage>=7.6",
     "ruff>=0.15.19",
+    "vulture>=2.16",
 ]
+
+[tool.basedpyright]
+typeCheckingMode = "basic"
+
+[[tool.basedpyright.executionEnvironments]]
+root = "tests"
+extraPaths = ["."]
+reportArgumentType = "none"
+reportAttributeAccessIssue = "none"
+reportCallIssue = "none"
+reportOptionalMemberAccess = "none"
+reportTypedDictNotRequiredAccess = "none"
 
 [tool.ruff]
 target-version = "py314"
@@ -33,6 +48,10 @@ select = ["E", "F", "I", "B", "UP", "C90", "SIM", "RUF", "PERF"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 6
+
+[tool.vulture]
+exclude = ["tests/homeassistant_stubs.py"]
+ignore_names = ["VERSION", "async_get_options_flow", "_attr_*", "_config_entry"]
 
 [tool.setuptools.packages.find]
 include = ["custom_components*"]
