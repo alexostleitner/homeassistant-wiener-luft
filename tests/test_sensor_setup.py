@@ -230,7 +230,9 @@ class SensorSetupTest(unittest.TestCase):
                                 "measurements": ["PM25", "O3"],
                             },
                         ),
-                        lambda entities: batches.append(list(entities)),
+                        lambda entities, batches=batches: batches.append(
+                            list(entities)
+                        ),
                     )
                 )
 
