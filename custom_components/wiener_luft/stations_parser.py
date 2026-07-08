@@ -23,20 +23,28 @@ def parse_station_geojson(payload: str | bytes | dict[str, Any]) -> dict[str, St
 
     stations: dict[str, Station] = {}
     for feature in features:
-        if not isinstance(feature, dict):
+        feature_data = _station_feature_data(feature)
+        if feature_data is None:
             continue
-        properties = feature.get("properties") or {}
-        code = str(properties.get("NAME_KURZ") or "").strip().upper()
-        if not code:
-            LOGGER.warning("Skipping station feature without NAME_KURZ")
-            continue
-
-        station = _station_from_feature(feature, properties, code)
+        code, station = feature_data
         if code in stations:
             LOGGER.warning("Duplicate station metadata for NAME_KURZ=%s", code)
         stations[code] = station
 
     return stations
+
+
+def _station_feature_data(feature: Any) -> tuple[str, Station] | None:
+    if not isinstance(feature, dict):
+        return None
+
+    properties = feature.get("properties") or {}
+    code = str(properties.get("NAME_KURZ") or "").strip().upper()
+    if not code:
+        LOGGER.warning("Skipping station feature without NAME_KURZ")
+        return None
+
+    return code, _station_from_feature(feature, properties, code)
 
 
 def _station_from_feature(
