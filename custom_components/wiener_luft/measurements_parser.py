@@ -93,9 +93,7 @@ def _choose_column(
     invalid_value: str | int | float | None = None
     for averaging_type in MEASUREMENT_PRIORITY:
         for column in (
-            column
-            for column in candidates
-            if column.averaging_type == averaging_type
+            column for column in candidates if column.averaging_type == averaging_type
         ):
             raw_value = _column_value(row, column)
             if parse_number(raw_value) is not None:
