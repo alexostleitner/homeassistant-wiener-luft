@@ -9,7 +9,7 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
-from .const import CONF_STATIONS
+from .const import CONF_STATIONS, RECOMMENDED_STATION_COUNT
 from .models import IntegrationData
 from .station import Station
 
@@ -94,7 +94,7 @@ def recommended_station_count(station_choices: StationChoices) -> int | None:
     """Return the default number of stations for a distance-sorted list."""
 
     if station_choices.distance_sorted:
-        return 5
+        return RECOMMENDED_STATION_COUNT
     return None
 
 
