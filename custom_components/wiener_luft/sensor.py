@@ -25,25 +25,8 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensors from a config entry."""
 
-    await _async_setup_sensors(hass, entry, async_add_entities)
-
-
-async def _async_setup_sensors(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    """Set up sensors from a config entry."""
-
     coordinator = entry.runtime_data
-    preferences = dict(entry.data)
-    preferences.update(entry.options)
-    if CONF_STATIONS in preferences and CONF_MEASUREMENTS in preferences:
-        selected_stations = set(preferences[CONF_STATIONS])
-        selected_measurements = set(preferences[CONF_MEASUREMENTS])
-    else:
-        selected_stations = None
-        selected_measurements = None
+    selected_stations, selected_measurements = _entry_sensor_selection(entry)
     LOGGER.debug(
         "Starting sensor setup for entry %s (stations=%s, measurements=%s)",
         entry.entry_id,
@@ -58,6 +41,37 @@ async def _async_setup_sensors(
     )
     known_measurement_keys = set(entities_by_measurement_key)
     async_add_entities(entities_by_measurement_key.values())
+    _register_coordinator_listener(
+        entry,
+        coordinator,
+        async_add_entities,
+        known_measurement_keys,
+        selected_stations,
+        selected_measurements,
+    )
+
+
+def _entry_sensor_selection(
+    entry: ConfigEntry,
+) -> tuple[set[str] | None, set[str] | None]:
+    """Return the selected stations and measurements from entry data/options."""
+
+    preferences = dict(entry.data)
+    preferences.update(entry.options)
+    if CONF_STATIONS in preferences and CONF_MEASUREMENTS in preferences:
+        return set(preferences[CONF_STATIONS]), set(preferences[CONF_MEASUREMENTS])
+    return None, None
+
+
+def _register_coordinator_listener(
+    entry: ConfigEntry,
+    coordinator: IntegrationCoordinator,
+    async_add_entities: AddEntitiesCallback,
+    known_measurement_keys: set[MeasurementKey],
+    selected_stations: set[str] | None,
+    selected_measurements: set[str] | None,
+) -> None:
+    """Register the coordinator listener that adds newly available entities."""
 
     def _handle_coordinator_update() -> None:
         available_entities_by_measurement_key = _build_entities_by_measurement_key(
