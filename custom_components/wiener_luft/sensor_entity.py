@@ -63,8 +63,17 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
         self._attr_suggested_display_precision = DISPLAY_PRECISION_BY_UNIT.get(
             measurement_spec.unit
         )
-        self._attr_unique_id = build_sensor_unique_id(station.code, measurement_code)
+        self._attr_unique_id = self.build_unique_id(station.code, measurement_code)
         self._attr_device_info = station_device_info(station)
+
+    @staticmethod
+    def build_unique_id(station_code: str, measurement_code: str) -> str:
+        """Build the stable unique ID for one station/measurement entity."""
+
+        return (
+            f"{DOMAIN}_{MEASUREMENT_SPECS[measurement_code].measurement_slug}_"
+            f"{slugify(station_code)}"
+        )
 
     @property
     def available(self) -> bool:
@@ -174,12 +183,3 @@ class MeasurementSensor(CoordinatorEntity, SensorEntity):
             previous_interval,
             current_interval,
         )
-
-
-def build_sensor_unique_id(station_code: str, measurement_code: str) -> str:
-    """Build the stable unique ID for one station/measurement entity."""
-
-    return (
-        f"{DOMAIN}_{MEASUREMENT_SPECS[measurement_code].measurement_slug}_"
-        f"{slugify(station_code)}"
-    )

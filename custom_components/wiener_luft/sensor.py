@@ -13,7 +13,7 @@ from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN
 from .coordinator import IntegrationCoordinator
 from .measurements import MEASUREMENT_SPECS
 from .measurements_parser import MeasurementKey
-from .sensor_entity import MeasurementSensor, build_sensor_unique_id
+from .sensor_entity import MeasurementSensor
 
 LOGGER = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ def _sync_entity_registry(
         return
 
     selected_unique_ids = {
-        build_sensor_unique_id(station_code, measurement_code)
+        MeasurementSensor.build_unique_id(station_code, measurement_code)
         for station_code in selected_stations
         for measurement_code in selected_measurements
     }
