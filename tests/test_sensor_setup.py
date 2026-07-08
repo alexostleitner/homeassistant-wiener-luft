@@ -219,7 +219,6 @@ class SensorSetupTest(unittest.TestCase):
             with self.subTest(measurements=measurements):
                 coordinator = make_coordinator(make_data(measurements))
                 batches: list[list[MeasurementSensor]] = []
-                add_entities = batches.append
 
                 asyncio.run(
                     async_setup_entry(
@@ -231,9 +230,7 @@ class SensorSetupTest(unittest.TestCase):
                                 "measurements": ["PM25", "O3"],
                             },
                         ),
-                        lambda entities, add_entities=add_entities: add_entities(
-                            list(entities)
-                        ),
+                        lambda entities: batches.append(list(entities)),
                     )
                 )
 
