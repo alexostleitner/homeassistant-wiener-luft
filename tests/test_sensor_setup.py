@@ -20,24 +20,27 @@ from homeassistant_stubs import (
 install_homeassistant_stubs()
 
 from custom_components.wiener_luft.models import IntegrationData  # noqa: E402
-from custom_components.wiener_luft.sensor import (  # noqa: E402
-    _build_entities_by_measurement_key,
-    async_setup_entry,
-)
+from custom_components.wiener_luft.sensor import async_setup_entry  # noqa: E402
 from custom_components.wiener_luft.sensor_entity import (  # noqa: E402
     MeasurementSensor,
-    build_sensor_unique_id,
 )
 
 
 class SensorSetupTest(unittest.TestCase):
-    def test_build_entities_returns_empty_without_data(self) -> None:
-        self.assertEqual(
-            {},
-            _build_entities_by_measurement_key(make_coordinator(None), None, None),
+    def test_setup_returns_empty_entities_without_data(self) -> None:
+        batches: list[list[MeasurementSensor]] = []
+
+        asyncio.run(
+            async_setup_entry(
+                make_hass(entity_registry=FakeRegistry(())),
+                make_entry(runtime_data=make_coordinator(None)),
+                lambda entities: batches.append(list(entities)),
+            )
         )
 
-    def test_build_entities_filters_selection(self) -> None:
+        self.assertEqual([[]], batches)
+
+    def test_setup_filters_entities_by_selection(self) -> None:
         coordinator = make_coordinator(
             IntegrationData(
                 stations={
@@ -57,15 +60,63 @@ class SensorSetupTest(unittest.TestCase):
                 },
             )
         )
+        batches: list[list[MeasurementSensor]] = []
 
-        entities_by_measurement_key = _build_entities_by_measurement_key(
-            coordinator,
-            {"STA2"},
-            {"PM25", "ZZ"},
+        asyncio.run(
+            async_setup_entry(
+                make_hass(entity_registry=FakeRegistry(())),
+                make_entry(
+                    runtime_data=coordinator,
+                    data={"stations": ["STA2"], "measurements": ["PM25", "ZZ"]},
+                ),
+                lambda entities: batches.append(list(entities)),
+            )
         )
+
         self.assertEqual(
             {("STA2", "PM25")},
-            set(entities_by_measurement_key),
+            {(entity._station_code, entity._measurement_code) for entity in batches[0]},
+        )
+
+    def test_setup_keeps_selected_measurements_for_multiple_stations(
+        self,
+    ) -> None:
+        coordinator = make_coordinator(
+            IntegrationData(
+                stations={
+                    "STA1": make_station(),
+                    "STA2": make_station(
+                        "STA2",
+                        "Station 2",
+                        district=2,
+                        latitude=48.3,
+                        longitude=16.4,
+                    ),
+                },
+                measurements={
+                    ("STA1", "PM25"): make_metric(12.3, "1MW"),
+                    ("STA1", "O3"): make_metric(9.1, "HMW"),
+                    ("STA2", "PM25"): make_metric(13.4, "1MW"),
+                    ("STA2", "O3"): make_metric(8.7, "HMW"),
+                },
+            )
+        )
+        batches: list[list[MeasurementSensor]] = []
+
+        asyncio.run(
+            async_setup_entry(
+                make_hass(entity_registry=FakeRegistry(())),
+                make_entry(
+                    runtime_data=coordinator,
+                    data={"measurements": ["PM25"], "stations": ["STA1", "STA2"]},
+                ),
+                lambda entities: batches.append(list(entities)),
+            )
+        )
+
+        self.assertEqual(
+            {("STA1", "PM25"), ("STA2", "PM25")},
+            {(entity._station_code, entity._measurement_code) for entity in batches[0]},
         )
 
     def test_setup_adds_new_entities_once(self) -> None:
@@ -198,12 +249,12 @@ class SensorSetupTest(unittest.TestCase):
         registry = FakeRegistry(
             [
                 make_registry_entry(
-                    unique_id=build_sensor_unique_id("STA1", "PM25"),
+                    unique_id=MeasurementSensor.build_unique_id("STA1", "PM25"),
                     disabled_by="integration",
                     entity_id="sensor.pm25_sta1",
                 ),
                 make_registry_entry(
-                    unique_id=build_sensor_unique_id("STA1", "O3"),
+                    unique_id=MeasurementSensor.build_unique_id("STA1", "O3"),
                     disabled_by=None,
                     entity_id="sensor.o3_sta1",
                 ),
