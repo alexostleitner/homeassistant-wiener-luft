@@ -8,8 +8,6 @@ from typing import TypedDict
 from .measurements_parser import MeasurementKey, SelectedMeasurements
 from .station import Station
 
-type StaleMeasurements = frozenset[MeasurementKey]
-
 
 class SourceSnapshot(TypedDict):
     """Serialized source snapshot stored in config entry data or options."""
@@ -24,4 +22,4 @@ class IntegrationData:
 
     stations: dict[str, Station]
     measurements: SelectedMeasurements
-    stale_measurements: StaleMeasurements = field(default_factory=frozenset)
+    stale_measurements: frozenset[MeasurementKey] = field(default_factory=frozenset)
