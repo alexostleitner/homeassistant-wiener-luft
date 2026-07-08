@@ -7,7 +7,11 @@ from math import atan2, cos, radians, sin, sqrt
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+)
 
 from .const import CONF_STATIONS, RECOMMENDED_STATION_COUNT
 from .models import IntegrationData
@@ -30,12 +34,17 @@ def _station_distance_km(
     """Return the distance in km between HA and one station."""
 
     earth_radius_km = 6371.0
-    delta_lat = radians(station.latitude - home_latitude)
-    delta_lon = radians(station.longitude - home_longitude)
+    station_latitude = station.latitude
+    station_longitude = station.longitude
+    assert station_latitude is not None
+    assert station_longitude is not None
+
+    delta_lat = radians(station_latitude - home_latitude)
+    delta_lon = radians(station_longitude - home_longitude)
     a = (
         sin(delta_lat / 2) ** 2
         + cos(radians(home_latitude))
-        * cos(radians(station.latitude))
+        * cos(radians(station_latitude))
         * sin(delta_lon / 2) ** 2
     )
     a = max(0.0, min(1.0, a))
@@ -104,7 +113,7 @@ def build_station_schema(
 ) -> vol.Schema:
     """Build the station selection schema."""
 
-    options = [
+    options: list[SelectOptionDict] = [
         {
             "value": station.code,
             "label": (
@@ -137,7 +146,7 @@ def station_defaults(
             return available_codes[:recommended_count]
         return available_codes
 
-    selected_codes = set(selected_codes)
+    selected_code_set = set(selected_codes)
     return [
-        code for code in available_codes if code in selected_codes
+        code for code in available_codes if code in selected_code_set
     ] or available_codes

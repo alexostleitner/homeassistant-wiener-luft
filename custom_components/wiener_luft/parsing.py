@@ -27,6 +27,8 @@ def parse_number(value: str | int | float | None) -> float | None:
         return None
     if isinstance(value, int | float):
         return float(value)
+    if value is None:
+        return None
 
     try:
         return float(value.strip().replace(",", "."))

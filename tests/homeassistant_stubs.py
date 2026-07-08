@@ -188,12 +188,16 @@ def install_homeassistant_stubs() -> None:
         "AddEntitiesCallback", (), {}
     )
     selector = modules["homeassistant.helpers.selector"]
+    selector.SelectOptionDict = dict
     selector.SelectSelector = _SelectSelector
     selector.SelectSelectorConfig = lambda **kwargs: kwargs
     modules["homeassistant.helpers.update_coordinator"].CoordinatorEntity = type(
         "CoordinatorEntity",
         (),
-        {"__init__": _coordinator_entity_init},
+        {
+            "__class_getitem__": classmethod(_return_cls),
+            "__init__": _coordinator_entity_init,
+        },
     )
     modules[
         "homeassistant.helpers.update_coordinator"

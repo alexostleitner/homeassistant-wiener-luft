@@ -31,7 +31,7 @@ from .station import (
 LOGGER = logging.getLogger("custom_components.wiener_luft.sensor")
 
 
-class MeasurementSensor(CoordinatorEntity, SensorEntity):
+class MeasurementSensor(CoordinatorEntity[IntegrationCoordinator], SensorEntity):
     """Measurement sensor backed by coordinator data."""
 
     _attr_has_entity_name = True
