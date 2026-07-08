@@ -14,6 +14,7 @@ from .coordinator import IntegrationCoordinator
 from .measurements import MEASUREMENT_SPECS
 from .measurements_parser import MeasurementKey
 from .sensor_entity import MeasurementSensor
+from .station import Station
 
 LOGGER = logging.getLogger(__name__)
 
@@ -152,13 +153,7 @@ class _SensorPlatformSetup:
         measurements = data.measurements
         measurement_codes = self._selected_measurement_codes()
         entities: dict[MeasurementKey, MeasurementSensor] = {}
-        for station_code, station in data.stations.items():
-            if (
-                self.station_filter is not None
-                and station_code not in self.station_filter
-            ):
-                continue
-
+        for station_code, station in self._selected_stations().items():
             for measurement_code in measurement_codes:
                 measurement_key = (station_code, measurement_code)
                 reading = measurements.get(measurement_key)
@@ -176,6 +171,19 @@ class _SensorPlatformSetup:
                     MEASUREMENT_SPECS[measurement_code],
                 )
         return entities
+
+    def _selected_stations(self) -> dict[str, Station]:
+        """Return the stations that should currently create entities."""
+
+        stations = self.coordinator.data.stations
+        if self.station_filter is None:
+            return stations
+
+        return {
+            station_code: station
+            for station_code, station in stations.items()
+            if station_code in self.station_filter
+        }
 
     def _selected_filters(self) -> tuple[set[str] | None, set[str] | None]:
         """Return the explicitly configured station and measurement filters."""
