@@ -85,6 +85,10 @@ class _DataUpdateCoordinator:
         self._listeners.append(callback)
         return lambda: self._listeners.remove(callback)
 
+    def async_update_listeners(self) -> None:
+        for callback in tuple(self._listeners):
+            callback()
+
 
 async def _async_add_executor_job(func, *args):
     return func(*args)
@@ -287,21 +291,6 @@ def make_data(
     )
 
 
-class FakeCoordinator:
-    def __init__(self, data) -> None:
-        self.data = data
-        self.last_update_success = True
-        self._listeners = []
-
-    def async_add_listener(self, callback):
-        self._listeners.append(callback)
-        return lambda: self._listeners.remove(callback)
-
-    def async_update_listeners(self) -> None:
-        for callback in tuple(self._listeners):
-            callback()
-
-
 class FakeRegistry:
     def __init__(self, entries) -> None:
         self.entries = list(entries)
@@ -317,8 +306,10 @@ class FakeRegistry:
             return
 
 
-def make_coordinator(data) -> FakeCoordinator:
-    return FakeCoordinator(data)
+def make_coordinator(data):
+    coordinator = _DataUpdateCoordinator()
+    coordinator.data = data
+    return coordinator
 
 
 def make_registry_entry(
