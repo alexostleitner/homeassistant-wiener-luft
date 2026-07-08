@@ -91,22 +91,22 @@ def _choose_column(
     candidates: list[MeasurementColumn],
 ) -> MeasurementColumn | None:
     invalid_value: str | int | float | None = None
-    for averaging_type in MEASUREMENT_PRIORITY:
-        for column in (
-            column for column in candidates if column.averaging_type == averaging_type
-        ):
-            raw_value = _column_value(row, column)
-            if parse_number(raw_value) is not None:
-                return column
-            if invalid_value is None and not is_missing_number(raw_value):
-                invalid_value = raw_value
-    if invalid_value is not None:
-        LOGGER.warning(
-            "Could not parse measurement value %r for station %s component %s",
-            invalid_value,
-            station_code,
-            component,
-        )
+    matching_columns = sorted(
+        [
+            column
+            for column in candidates
+            if column.averaging_type in MEASUREMENT_PRIORITY
+        ],
+        key=lambda column: MEASUREMENT_PRIORITY.index(column.averaging_type),
+    )
+    for column in matching_columns:
+        raw_value = _column_value(row, column)
+        if parse_number(raw_value) is not None:
+            return column
+        if invalid_value is None and not is_missing_number(raw_value):
+            invalid_value = raw_value
+
+    _log_invalid_measurement_value(station_code, component, invalid_value)
     return None
 
 
@@ -130,11 +130,7 @@ def _parse_lumes_header(
         raise ValueError(msg)
 
     expected_components = set(MEASUREMENT_SPECS)
-    actual_components = {
-        name
-        for name in (raw_name.strip() for raw_name in component_row)
-        if name and not name.startswith("Zeit-")
-    }
+    actual_components = _measurement_components(component_row)
     missing_components = sorted(expected_components - actual_components)
     unexpected_components = sorted(actual_components - expected_components)
     if missing_components or unexpected_components:
@@ -169,12 +165,7 @@ def _collect_columns(
             continue
 
         spec = MEASUREMENT_SPECS[component]
-        unit = (
-            unit_row[index]
-            .strip()
-            .replace("\u00b5", unicodedata.normalize("NFKC", "\u00b5"))
-            or spec.unit
-        )
+        unit = _normalized_unit(unit_row[index], spec.unit)
         columns_by_component.setdefault(component, []).append(
             MeasurementColumn(
                 value_index=index,
@@ -185,6 +176,45 @@ def _collect_columns(
             )
         )
     return columns_by_component
+
+
+def _normalized_unit(raw_unit: str, fallback_unit: str) -> str:
+    """Normalize one measurement unit header value."""
+
+    normalized_unit = raw_unit.strip().replace(
+        "\u00b5", unicodedata.normalize("NFKC", "\u00b5")
+    )
+    return normalized_unit or fallback_unit
+
+
+def _measurement_components(component_row: list[str]) -> set[str]:
+    """Return the measurement component names declared in the CSV header."""
+
+    actual_components: set[str] = set()
+    for raw_name in component_row:
+        name = raw_name.strip()
+        if not name or name.startswith("Zeit-"):
+            continue
+        actual_components.add(name)
+    return actual_components
+
+
+def _log_invalid_measurement_value(
+    station_code: str,
+    component: str,
+    invalid_value: str | int | float | None,
+) -> None:
+    """Log the first unusable measurement value for one station/component."""
+
+    if invalid_value is None:
+        return
+
+    LOGGER.warning(
+        "Could not parse measurement value %r for station %s component %s",
+        invalid_value,
+        station_code,
+        component,
+    )
 
 
 def _select_row_measurements(
