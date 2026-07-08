@@ -105,9 +105,13 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         measurements = await self._async_fetch_measurements()
         if station_refresh_succeeded:
             self._log_source_changes(measurements)
-        return self._build_integration_data(
-            measurements,
-            now=dt_util.utcnow(),
+        now = dt_util.utcnow()
+        stale_measurements = _stale_measurement_keys(measurements, now)
+
+        return IntegrationData(
+            stations=self._cached_stations,
+            measurements=measurements,
+            stale_measurements=stale_measurements,
         )
 
     async def _async_fetch_measurements(self) -> SelectedMeasurements:
@@ -119,20 +123,6 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
             raise UpdateFailed(
                 "Could not update Wiener Luftmessnetz measurements"
             ) from err
-
-    def _build_integration_data(
-        self,
-        measurements: SelectedMeasurements,
-        *,
-        now: datetime,
-    ) -> IntegrationData:
-        """Build the coordinator payload from current stations and measurements."""
-
-        return IntegrationData(
-            stations=self._cached_stations,
-            measurements=measurements,
-            stale_measurements=_stale_measurement_keys(measurements, now),
-        )
 
     def _log_source_changes(self, measurements: SelectedMeasurements) -> None:
         """Log source differences after a successful station refresh."""
