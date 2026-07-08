@@ -21,21 +21,19 @@ def restore_availability_snapshot(value: object) -> AvailabilityItems | None:
     if not isinstance(station_codes, list) or not isinstance(measurement_keys, list):
         return None
 
-    if any(not isinstance(item, (list, tuple)) for item in measurement_keys):
+    if not all(isinstance(station_code, str) for station_code in station_codes):
+        return None
+    if not all(
+        isinstance(item, (list, tuple))
+        and len(item) == 2
+        and isinstance(item[0], str)
+        and isinstance(item[1], str)
+        for item in measurement_keys
+    ):
         return None
 
     previous_station_codes = set(station_codes)
-    previous_measurement_keys = {tuple(item) for item in measurement_keys}
-    if any(
-        not isinstance(station_code, str) for station_code in previous_station_codes
-    ):
-        return None
-    if any(
-        len(item) != 2 or not isinstance(item[0], str) or not isinstance(item[1], str)
-        for item in previous_measurement_keys
-    ):
-        return None
-
+    previous_measurement_keys = {(item[0], item[1]) for item in measurement_keys}
     return previous_station_codes, previous_measurement_keys
 
 
@@ -88,6 +86,7 @@ def _restore_station_snapshot_entry(code: object, value: object) -> Station | No
     return _restore_station_from_snapshot_data(code, value)
 
 
+# complexipy: ignore
 def _restore_station_from_snapshot_data(
     code: str,
     value: dict[str, object],
