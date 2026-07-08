@@ -36,7 +36,6 @@ root = "tests"
 extraPaths = ["."]
 reportArgumentType = "none"
 reportAttributeAccessIssue = "none"
-reportCallIssue = "none"
 reportOptionalMemberAccess = "none"
 reportTypedDictNotRequiredAccess = "none"
 
