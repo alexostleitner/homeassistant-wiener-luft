@@ -31,7 +31,9 @@ from .models import IntegrationData
 from .snapshots import build_availability_snapshot
 
 
-class IntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class IntegrationConfigFlow(  # pyright: ignore[reportCallIssue]
+    config_entries.ConfigFlow, domain=DOMAIN
+):
     """Handle setup via the UI."""
 
     VERSION = 1
