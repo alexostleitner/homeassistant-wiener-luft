@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import atan2, cos, radians, sin, sqrt
+from typing import Protocol, cast
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant
@@ -16,6 +17,13 @@ from homeassistant.helpers.selector import (
 from .const import CONF_STATIONS, RECOMMENDED_STATION_COUNT
 from .models import IntegrationData
 from .station import Station
+
+
+class _ConfigWithCoordinates(Protocol):
+    """Subset of Home Assistant config used by station ordering."""
+
+    latitude: float | None
+    longitude: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,8 +80,9 @@ def sorted_stations_for_flow(
     """Return station ordering for the selector."""
 
     stations = list(integration_data.stations.values())
-    home_latitude = hass.config.latitude
-    home_longitude = hass.config.longitude
+    config = cast(_ConfigWithCoordinates, hass.config)
+    home_latitude = config.latitude
+    home_longitude = config.longitude
     if home_latitude is None or home_longitude is None:
         return _alphabetical_stations(stations)
 

@@ -135,7 +135,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         for station_code in unknown_station_codes(self._cached_stations, measurements):
             LOGGER.warning(
                 "Wiener Luftmessnetz CSV contains unknown station code %s that is not "
-                "present in station metadata",
+                + "present in station metadata",
                 station_code,
             )
 
@@ -164,8 +164,9 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
 
         LOGGER.info(
             "Wiener Luftmessnetz exposes %d new station(s) and %d new "
-            "station/measurement combination(s) since the last saved configuration. "
-            "Open the integration options to review and save the updated snapshot.",
+            + "station/measurement combination(s) since the last saved "
+            + "configuration. Open the integration options to review and save "
+            + "the updated snapshot.",
             len(new_station_codes),
             len(new_measurement_keys),
         )

@@ -76,6 +76,24 @@ class ConfigFlowTest(unittest.TestCase):
             ),
         )
 
+    def test_load_measurement_names_fail_for_invalid_translation_structure(
+        self,
+    ) -> None:
+        config_flow_data_module._load_measurement_names_from_file.cache_clear()
+
+        with (
+            patch.object(config_flow_data_module.Path, "exists", return_value=True),
+            patch.object(
+                config_flow_data_module.Path,
+                "read_text",
+                return_value='{"entity": {}}',
+            ),
+            self.assertRaisesRegex(ValueError, "missing 'sensor'"),
+        ):
+            config_flow_data_module._load_measurement_names_from_file("zz-test-invalid")
+
+        config_flow_data_module._load_measurement_names_from_file.cache_clear()
+
     def test_user_step_aborts_when_station_fetch_fails(self) -> None:
         flow = config_flow_module.IntegrationConfigFlow()
         flow.hass = make_hass()
