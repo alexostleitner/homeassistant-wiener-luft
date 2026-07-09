@@ -29,12 +29,22 @@ dev = [
 ]
 
 [tool.basedpyright]
-typeCheckingMode = "basic"
+typeCheckingMode = "standard"
+strict = ["custom_components"]
+stubPath = "typings"
+reportMissingModuleSource = "none"
+ignore = ["tests/homeassistant_stubs.py"]
 
 [[tool.basedpyright.executionEnvironments]]
 root = "tests"
 extraPaths = ["."]
-reportArgumentType = "none"
+reportUnknownParameterType = "none"
+reportUnknownVariableType = "none"
+reportUnknownMemberType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownLambdaType = "none"
+reportMissingParameterType = "none"
+reportMissingTypeArgument = "none"
 reportAttributeAccessIssue = "none"
 reportOptionalMemberAccess = "none"
 reportTypedDictNotRequiredAccess = "none"
