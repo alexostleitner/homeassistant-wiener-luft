@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from typing import cast
 
 from .parsing import decode_payload, is_missing_number, parse_number
@@ -13,14 +14,14 @@ LOGGER = logging.getLogger(__name__)
 
 
 def parse_station_geojson(
-    payload: str | bytes | dict[str, object],
+    payload: str | bytes | Mapping[str, object],
 ) -> dict[str, Station]:
     """Parse station metadata GeoJSON keyed by NAME_KURZ."""
 
     raw_data = (
-        payload if isinstance(payload, dict) else json.loads(decode_payload(payload))
+        payload if isinstance(payload, Mapping) else json.loads(decode_payload(payload))
     )
-    data = cast(dict[str, object], raw_data)
+    data = cast(Mapping[str, object], raw_data)
     features = data.get("features")
     if not isinstance(features, list):
         msg = "Station GeoJSON must contain a features list"
