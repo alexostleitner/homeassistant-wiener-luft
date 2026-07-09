@@ -38,6 +38,7 @@ ignore = ["tests/homeassistant_stubs.py"]
 [[tool.basedpyright.executionEnvironments]]
 root = "tests"
 extraPaths = ["."]
+reportArgumentType = "none"
 reportUnknownParameterType = "none"
 reportUnknownVariableType = "none"
 reportUnknownMemberType = "none"
