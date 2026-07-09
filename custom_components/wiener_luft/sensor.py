@@ -175,7 +175,10 @@ class _SensorPlatformSetup:
     def _selected_stations(self) -> dict[str, Station]:
         """Return the stations that should currently create entities."""
 
-        stations = self.coordinator.data.stations
+        data = self.coordinator.data
+        assert data is not None
+
+        stations = data.stations
         if self.station_filter is None:
             return stations
 
