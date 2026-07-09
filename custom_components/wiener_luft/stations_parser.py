@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import cast
 
 from .parsing import decode_payload, is_missing_number, parse_number
 from .station import Station
@@ -12,17 +12,23 @@ from .station import Station
 LOGGER = logging.getLogger(__name__)
 
 
-def parse_station_geojson(payload: str | bytes | dict[str, Any]) -> dict[str, Station]:
+def parse_station_geojson(
+    payload: str | bytes | dict[str, object],
+) -> dict[str, Station]:
     """Parse station metadata GeoJSON keyed by NAME_KURZ."""
 
-    data = payload if isinstance(payload, dict) else json.loads(decode_payload(payload))
+    raw_data = (
+        payload if isinstance(payload, dict) else json.loads(decode_payload(payload))
+    )
+    data = cast(dict[str, object], raw_data)
     features = data.get("features")
     if not isinstance(features, list):
         msg = "Station GeoJSON must contain a features list"
         raise ValueError(msg)
 
+    feature_items = cast(list[object], features)
     stations: dict[str, Station] = {}
-    for feature in features:
+    for feature in feature_items:
         feature_data = _station_feature_data(feature)
         if feature_data is None:
             continue
@@ -34,21 +40,27 @@ def parse_station_geojson(payload: str | bytes | dict[str, Any]) -> dict[str, St
     return stations
 
 
-def _station_feature_data(feature: Any) -> tuple[str, Station] | None:
+def _station_feature_data(feature: object) -> tuple[str, Station] | None:
     if not isinstance(feature, dict):
         return None
 
-    properties = feature.get("properties") or {}
+    feature_data = cast(dict[str, object], feature)
+    raw_properties = feature_data.get("properties")
+    properties = (
+        cast(dict[str, object], raw_properties)
+        if isinstance(raw_properties, dict)
+        else {}
+    )
     code = str(properties.get("NAME_KURZ") or "").strip().upper()
     if not code:
         LOGGER.warning("Skipping station feature without NAME_KURZ")
         return None
 
-    return code, _station_from_feature(feature, properties, code)
+    return code, _station_from_feature(feature_data, properties, code)
 
 
 def _station_from_feature(
-    feature: dict[str, Any], properties: Any, code: str
+    feature: dict[str, object], properties: dict[str, object], code: str
 ) -> Station:
     longitude, latitude = _coordinates_from_feature(feature, code)
     district = _parse_station_number(
@@ -65,21 +77,37 @@ def _station_from_feature(
 
 
 def _coordinates_from_feature(
-    feature: dict[str, Any],
+    feature: dict[str, object],
     code: str,
 ) -> tuple[float | None, float | None]:
-    coordinates = (feature.get("geometry") or {}).get("coordinates") or []
-    if not isinstance(coordinates, (list, tuple)) or len(coordinates) < 2:
+    raw_geometry = feature.get("geometry")
+    if not isinstance(raw_geometry, dict):
         return None, None
 
-    longitude = _parse_station_number(coordinates[0], code=code, field="longitude")
-    latitude = _parse_station_number(coordinates[1], code=code, field="latitude")
+    geometry = cast(dict[str, object], raw_geometry)
+    coordinates = geometry.get("coordinates")
+    if not isinstance(coordinates, (list, tuple)):
+        return None, None
+
+    coordinate_items = cast(list[object] | tuple[object, ...], coordinates)
+    if len(coordinate_items) < 2:
+        return None, None
+
+    longitude = _parse_station_number(coordinate_items[0], code=code, field="longitude")
+    latitude = _parse_station_number(coordinate_items[1], code=code, field="latitude")
     return longitude, latitude
 
 
-def _parse_station_number(
-    value: str | int | float | None, *, code: str, field: str
-) -> float | None:
+def _parse_station_number(value: object, *, code: str, field: str) -> float | None:
+    if value is not None and not isinstance(value, str | int | float):
+        LOGGER.warning(
+            "Could not parse station %s value %r for %s",
+            field,
+            value,
+            code,
+        )
+        return None
+
     parsed = parse_number(value)
     if parsed is None and not is_missing_number(value):
         LOGGER.warning(

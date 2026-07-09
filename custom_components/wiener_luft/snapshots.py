@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import cast
 
 from .availability import AvailabilityItems, availability_items
 from .measurements_parser import SelectedMeasurements
@@ -16,24 +17,31 @@ def restore_availability_snapshot(value: object) -> AvailabilityItems | None:
     if not isinstance(value, dict):
         return None
 
-    station_codes = value.get("station_codes")
-    measurement_keys = value.get("measurement_keys")
+    snapshot = cast(dict[str, object], value)
+    station_codes = snapshot.get("station_codes")
+    measurement_keys = snapshot.get("measurement_keys")
     if not isinstance(station_codes, list) or not isinstance(measurement_keys, list):
         return None
 
-    if not all(isinstance(station_code, str) for station_code in station_codes):
+    station_code_items = cast(list[object], station_codes)
+    measurement_key_items = cast(list[object], measurement_keys)
+
+    if not all(isinstance(station_code, str) for station_code in station_code_items):
         return None
     if not all(
         isinstance(item, (list, tuple))
-        and len(item) == 2
+        and len(cast(list[object] | tuple[object, ...], item)) == 2
         and isinstance(item[0], str)
         and isinstance(item[1], str)
-        for item in measurement_keys
+        for item in measurement_key_items
     ):
         return None
 
-    previous_station_codes = set(station_codes)
-    previous_measurement_keys = {(item[0], item[1]) for item in measurement_keys}
+    previous_station_codes = set(cast(list[str], station_code_items))
+    previous_measurement_keys = {
+        (item[0], item[1])
+        for item in cast(list[list[str] | tuple[str, str]], measurement_key_items)
+    }
     return previous_station_codes, previous_measurement_keys
 
 
@@ -64,8 +72,9 @@ def restore_station_snapshot(value: object) -> dict[str, Station] | None:
     if not isinstance(value, dict):
         return None
 
+    snapshot = cast(dict[str, object], value)
     stations: dict[str, Station] = {}
-    for code, station_data in value.items():
+    for code, station_data in snapshot.items():
         station = _restore_station_snapshot_entry(code, station_data)
         if station is None:
             return None
@@ -79,11 +88,12 @@ def _restore_station_snapshot_entry(code: object, value: object) -> Station | No
     if not isinstance(code, str) or not isinstance(value, dict):
         return None
 
-    stored_code = value.get("code", code)
+    station_data = cast(dict[str, object], value)
+    stored_code = station_data.get("code", code)
     if stored_code != code:
         return None
 
-    return _restore_station_from_snapshot_data(code, value)
+    return _restore_station_from_snapshot_data(code, station_data)
 
 
 # complexipy: ignore

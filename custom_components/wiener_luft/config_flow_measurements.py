@@ -57,7 +57,7 @@ def build_measurement_schema(
 
     counts = _count_available_measurements(integration_data, selected_station_codes)
     station_count = len(selected_station_codes)
-    options = []
+    options: list[dict[str, str]] = []
     for component in MEASUREMENT_SPECS:
         available_count = counts[component]
         if available_count == 0:
