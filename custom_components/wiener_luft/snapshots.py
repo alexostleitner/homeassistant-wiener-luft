@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import cast
+from typing import TypedDict, cast
 
-from .models import AvailabilityItems, IntegrationData, SourceSnapshot
+from .models import AvailabilityItems, IntegrationData
 from .station import Station
+
+
+class SourceSnapshot(TypedDict):
+    """Serialized source snapshot stored in config entry data or options."""
+
+    station_codes: list[str]
+    measurement_keys: list[list[str]]
 
 
 def restore_availability_snapshot(value: object) -> AvailabilityItems | None:

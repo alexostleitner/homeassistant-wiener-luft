@@ -3,19 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TypedDict
 
 from .measurements import MEASUREMENT_SPECS, MeasurementKey, SelectedMeasurements
 from .station import Station
 
 type AvailabilityItems = tuple[set[str], set[MeasurementKey]]
-
-
-class SourceSnapshot(TypedDict):
-    """Serialized source snapshot stored in config entry data or options."""
-
-    station_codes: list[str]
-    measurement_keys: list[list[str]]
 
 
 @dataclass(frozen=True, slots=True)
