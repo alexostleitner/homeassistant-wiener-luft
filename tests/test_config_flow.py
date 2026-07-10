@@ -307,8 +307,7 @@ class ConfigFlowTest(unittest.TestCase):
                 "stations": ["STA1"],
                 "measurements": ["PM25"],
                 SOURCE_SNAPSHOT: snapshots_module.build_availability_snapshot(
-                    stations,
-                    measurements,
+                    make_flow_data(stations, measurements)
                 ),
             },
             result["data"],
@@ -485,8 +484,7 @@ class OptionsFlowTest(unittest.TestCase):
                 "stations": ["STA1"],
                 "measurements": ["PM25"],
                 SOURCE_SNAPSHOT: snapshots_module.build_availability_snapshot(
-                    stations,
-                    measurements,
+                    make_flow_data(stations, measurements)
                 ),
             },
             result["data"],

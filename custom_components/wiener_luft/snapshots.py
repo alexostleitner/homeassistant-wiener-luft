@@ -5,9 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import cast
 
-from .availability import AvailabilityItems, availability_items
-from .measurements import SelectedMeasurements
-from .models import SourceSnapshot
+from .models import AvailabilityItems, IntegrationData, SourceSnapshot
 from .station import Station
 
 
@@ -45,13 +43,10 @@ def restore_availability_snapshot(value: object) -> AvailabilityItems | None:
     return previous_station_codes, previous_measurement_keys
 
 
-def build_availability_snapshot(
-    stations: dict[str, Station],
-    measurements: SelectedMeasurements,
-) -> SourceSnapshot:
+def build_availability_snapshot(integration_data: IntegrationData) -> SourceSnapshot:
     """Serialize the currently available station and measurement keys."""
 
-    station_codes, measurement_keys = availability_items(stations, measurements)
+    station_codes, measurement_keys = integration_data.availability_items()
     return SourceSnapshot(
         station_codes=sorted(station_codes),
         measurement_keys=[list(item) for item in sorted(measurement_keys)],

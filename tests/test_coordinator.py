@@ -249,13 +249,18 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             ("STA3", "PM25"): make_metric(3.2, "1MW"),
             ("STA1", "O3"): make_metric(6.7, "HMW"),
         }
+        base_data = IntegrationData(
+            stations=base_stations,
+            measurements=base_measurements,
+        )
+        expanded_data = IntegrationData(
+            stations=expanded_stations,
+            measurements=expanded_measurements,
+        )
         coordinator, _async_update_entry = make_coordinator(
             data={
                 coordinator_module.SOURCE_SNAPSHOT: (
-                    snapshots_module.build_availability_snapshot(
-                        base_stations,
-                        base_measurements,
-                    )
+                    snapshots_module.build_availability_snapshot(base_data)
                 )
             }
         )
@@ -264,22 +269,19 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs(
             coordinator_module.LOGGER.name, level="INFO"
         ) as first_logs:
-            coordinator._log_new_source_items(expanded_measurements)
+            coordinator._log_new_source_items(expanded_data)
         with self.assertLogs(
             coordinator_module.LOGGER.name, level="INFO"
         ) as second_logs:
-            coordinator._log_new_source_items(expanded_measurements)
+            coordinator._log_new_source_items(expanded_data)
 
         coordinator.config_entry.options = {
             coordinator_module.SOURCE_SNAPSHOT: (
-                snapshots_module.build_availability_snapshot(
-                    expanded_stations,
-                    expanded_measurements,
-                )
+                snapshots_module.build_availability_snapshot(expanded_data)
             )
         }
         with self.assertNoLogs(coordinator_module.LOGGER.name, level="INFO"):
-            coordinator._log_new_source_items(expanded_measurements)
+            coordinator._log_new_source_items(expanded_data)
 
         self.assertIn("1 new station(s)", first_logs.output[0])
         self.assertIn("2 new station/measurement combination(s)", first_logs.output[0])
@@ -422,22 +424,24 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                 "measurement_keys": [["STA1", "PM25"]],
             },
             snapshots_module.build_availability_snapshot(
-                {
-                    "STA1": make_station(
-                        code="STA1",
-                        name="Station Alpha",
-                        district=3,
-                        latitude=48.21,
-                        longitude=16.31,
-                    )
-                },
-                {
-                    ("STA1", "PM25"): make_metric(12.3, "1MW"),
-                    ("STA1", "O3"): make_metric(None, "HMW"),
-                    ("STA1", "NO2"): make_metric(5.0, None),
-                    ("STA2", "PM25"): make_metric(7.0, "1MW"),
-                    ("STA1", "ZZ"): make_metric(4.0, "1MW"),
-                },
+                IntegrationData(
+                    stations={
+                        "STA1": make_station(
+                            code="STA1",
+                            name="Station Alpha",
+                            district=3,
+                            latitude=48.21,
+                            longitude=16.31,
+                        )
+                    },
+                    measurements={
+                        ("STA1", "PM25"): make_metric(12.3, "1MW"),
+                        ("STA1", "O3"): make_metric(None, "HMW"),
+                        ("STA1", "NO2"): make_metric(5.0, None),
+                        ("STA2", "PM25"): make_metric(7.0, "1MW"),
+                        ("STA1", "ZZ"): make_metric(4.0, "1MW"),
+                    },
+                )
             ),
         )
 

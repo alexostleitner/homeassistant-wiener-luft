@@ -10,10 +10,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .availability import (
-    availability_items,
-    unknown_station_codes,
-)
 from .const import (
     MEASUREMENT_UPDATE_INTERVAL,
     NAME,
@@ -102,16 +98,16 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
 
         station_refresh_succeeded = await self.async_refresh_stations()
         measurements = await self._async_fetch_measurements()
-        if station_refresh_succeeded:
-            self._log_source_changes(measurements)
         now = dt_util.utcnow()
-        stale_measurements = _stale_measurement_keys(measurements, now)
-
-        return IntegrationData(
+        integration_data = IntegrationData(
             stations=self._cached_stations,
             measurements=measurements,
-            stale_measurements=stale_measurements,
+            stale_measurements=_stale_measurement_keys(measurements, now),
         )
+        if station_refresh_succeeded:
+            self._log_source_changes(integration_data)
+
+        return integration_data
 
     async def _async_fetch_measurements(self) -> SelectedMeasurements:
         """Fetch current measurements with the coordinator error boundary."""
@@ -123,23 +119,23 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
                 "Could not update Wiener Luftmessnetz measurements"
             ) from err
 
-    def _log_source_changes(self, measurements: SelectedMeasurements) -> None:
+    def _log_source_changes(self, integration_data: IntegrationData) -> None:
         """Log source differences after a successful station refresh."""
 
-        self._log_unknown_station_codes(measurements)
-        self._log_new_source_items(measurements)
+        self._log_unknown_station_codes(integration_data)
+        self._log_new_source_items(integration_data)
 
-    def _log_unknown_station_codes(self, measurements: SelectedMeasurements) -> None:
+    def _log_unknown_station_codes(self, integration_data: IntegrationData) -> None:
         """Log stations present in measurements but missing from station metadata."""
 
-        for station_code in unknown_station_codes(self._cached_stations, measurements):
+        for station_code in integration_data.unknown_station_codes():
             LOGGER.warning(
                 "Wiener Luftmessnetz CSV contains unknown station code %s that is not "
                 + "present in station metadata",
                 station_code,
             )
 
-    def _log_new_source_items(self, measurements: SelectedMeasurements) -> None:
+    def _log_new_source_items(self, integration_data: IntegrationData) -> None:
         """Log source items that were not present in the last stored snapshot."""
 
         if self.config_entry is None:
@@ -153,8 +149,8 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         if previous_source_items is None:
             return
 
-        current_station_codes, current_measurement_keys = availability_items(
-            self._cached_stations, measurements
+        current_station_codes, current_measurement_keys = (
+            integration_data.availability_items()
         )
         previous_station_codes, previous_measurement_keys = previous_source_items
         new_station_codes = current_station_codes - previous_station_codes

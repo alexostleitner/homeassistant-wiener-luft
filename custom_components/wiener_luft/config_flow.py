@@ -320,8 +320,5 @@ def _build_saved_preferences(
     return {
         CONF_STATIONS: selected_stations,
         CONF_MEASUREMENTS: selected_measurements,
-        SOURCE_SNAPSHOT: build_availability_snapshot(
-            integration_data.stations,
-            integration_data.measurements,
-        ),
+        SOURCE_SNAPSHOT: build_availability_snapshot(integration_data),
     }
