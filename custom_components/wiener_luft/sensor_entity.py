@@ -130,14 +130,12 @@ class MeasurementSensor(CoordinatorEntity[IntegrationCoordinator], SensorEntity)
             return self._station
         return self.coordinator.data.stations.get(self._station_code, self._station)
 
-    @property
-    def _wind_speed_reading(self) -> SelectedMetric | None:
-        if self.coordinator.data is None:
-            return None
-        return self.coordinator.data.measurements.get((self._station_code, "WG"))
-
     def _wind_speed_is_calm(self) -> bool:
-        wind_speed_reading = self._wind_speed_reading
+        data = self.coordinator.data
+        if data is None:
+            return False
+
+        wind_speed_reading = data.measurements.get((self._station_code, "WG"))
         if wind_speed_reading is None or wind_speed_reading.value is None:
             return False
         if wind_speed_reading.unit == "m/s":

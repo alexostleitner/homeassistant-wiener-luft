@@ -241,7 +241,7 @@ def _build_selected_metric(
 ) -> SelectedMetric:
     """Build the selected metric for one station/component row."""
 
-    unit = component_columns[0].unit or MEASUREMENT_SPECS[component].unit
+    unit = component_columns[0].unit
     if chosen_column is None:
         return SelectedMetric(
             value=None,
@@ -251,12 +251,8 @@ def _build_selected_metric(
         )
 
     return SelectedMetric(
-        value=parse_number(
-            row[chosen_column.value_index]
-            if chosen_column.value_index < len(row)
-            else None
-        ),
-        unit=chosen_column.unit or unit,
+        value=parse_number(_column_value(row, chosen_column)),
+        unit=chosen_column.unit,
         measurement_type=chosen_column.averaging_type,
         measured_at=_parse_measured_at(row, chosen_column),
     )
