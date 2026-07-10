@@ -11,10 +11,12 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.const import ATTR_LATITUDE, ATTR_LONGITUDE
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import slugify
 
-from .const import CALM_WIND_SPEED_MPS, DOMAIN
+from .const import CALM_WIND_SPEED_MPS, DOMAIN, NAME
 from .coordinator import IntegrationCoordinator
 from .measurements import (
     DISPLAY_PRECISION_BY_UNIT,
@@ -22,11 +24,7 @@ from .measurements import (
     MeasurementSpec,
     SelectedMetric,
 )
-from .station import (
-    Station,
-    station_device_info,
-    station_state_attributes,
-)
+from .station import Station
 
 LOGGER = logging.getLogger("custom_components.wiener_luft.sensor")
 
@@ -63,7 +61,7 @@ class MeasurementSensor(CoordinatorEntity[IntegrationCoordinator], SensorEntity)
             measurement_spec.unit
         )
         self._attr_unique_id = self.build_unique_id(station.code, measurement_code)
-        self._attr_device_info = station_device_info(station)
+        self._attr_device_info = self._station_device_info(station)
 
     @staticmethod
     def build_unique_id(station_code: str, measurement_code: str) -> str:
@@ -105,7 +103,7 @@ class MeasurementSensor(CoordinatorEntity[IntegrationCoordinator], SensorEntity)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        attributes = station_state_attributes(self._current_station)
+        attributes = self._station_state_attributes(self._current_station)
         reading = self._reading
         if reading is not None and reading.measurement_type is not None:
             attributes["interval"] = reading.measurement_type
@@ -129,6 +127,29 @@ class MeasurementSensor(CoordinatorEntity[IntegrationCoordinator], SensorEntity)
         if self.coordinator.data is None:
             return self._station
         return self.coordinator.data.stations.get(self._station_code, self._station)
+
+    @staticmethod
+    def _station_device_info(station: Station) -> DeviceInfo:
+        """Build Home Assistant device metadata for one station."""
+
+        device_info: DeviceInfo = {
+            "identifiers": {(DOMAIN, station.code)},
+            "name": station.name,
+            "manufacturer": NAME,
+        }
+        if station.station_url:
+            device_info["configuration_url"] = station.station_url
+        return device_info
+
+    @staticmethod
+    def _station_state_attributes(station: Station) -> dict[str, Any]:
+        """Build Home Assistant state attributes for one station."""
+
+        return {
+            "district": station.district,
+            ATTR_LATITUDE: station.latitude,
+            ATTR_LONGITUDE: station.longitude,
+        }
 
     def _wind_speed_is_calm(self) -> bool:
         data = self.coordinator.data
