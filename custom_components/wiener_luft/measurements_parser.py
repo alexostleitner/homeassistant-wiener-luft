@@ -1,4 +1,4 @@
-"""Parsers and normalized data models for measurement payloads."""
+"""Parser for measurement payloads."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from .measurements import (
     MEASUREMENT_PRIORITY,
     MEASUREMENT_SPECS,
+    SelectedMeasurements,
+    SelectedMetric,
 )
 from .parsing import MISSING_VALUES, decode_payload, is_missing_number, parse_number
 
@@ -22,17 +24,6 @@ TIMEZONES: dict[str, tzinfo] = {
     "CET": timezone(timedelta(hours=1), name="CET"),
     "CEST": timezone(timedelta(hours=2), name="CEST"),
 }
-type MeasurementKey = tuple[str, str]
-
-
-@dataclass(frozen=True, slots=True)
-class SelectedMetric:
-    """Selected measurement value."""
-
-    value: float | None
-    unit: str
-    measurement_type: str | None
-    measured_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,9 +35,6 @@ class MeasurementColumn:
     unit: str
     time_index: int | None
     time_zone: str | None
-
-
-type SelectedMeasurements = dict[MeasurementKey, SelectedMetric]
 
 
 def parse_lumes_csv(payload: str | bytes) -> SelectedMeasurements:

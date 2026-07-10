@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from .measurements import MEASUREMENT_SPECS
-from .measurements_parser import MeasurementKey, SelectedMeasurements
+from .measurements import MEASUREMENT_SPECS, MeasurementKey, SelectedMeasurements
 from .station import Station
 
 type AvailabilityItems = tuple[set[str], set[MeasurementKey]]

@@ -13,7 +13,8 @@ from .const import (
     STATIONS_URL,
 )
 from .exceptions import FlowFetchError
-from .measurements_parser import SelectedMeasurements, parse_lumes_csv
+from .measurements import SelectedMeasurements
+from .measurements_parser import parse_lumes_csv
 from .station import Station
 from .stations_parser import parse_station_geojson
 

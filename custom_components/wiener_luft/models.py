@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TypedDict
 
-from .measurements_parser import MeasurementKey, SelectedMeasurements
+from .measurements import MeasurementKey, SelectedMeasurements
 from .station import Station
 
 

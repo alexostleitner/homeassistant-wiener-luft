@@ -20,8 +20,8 @@ from .measurements import (
     DISPLAY_PRECISION_BY_UNIT,
     MEASUREMENT_SPECS,
     MeasurementSpec,
+    SelectedMetric,
 )
-from .measurements_parser import SelectedMetric
 from .station import (
     Station,
     station_device_info,

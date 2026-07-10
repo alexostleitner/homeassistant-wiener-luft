@@ -6,7 +6,7 @@ from dataclasses import asdict
 from typing import cast
 
 from .availability import AvailabilityItems, availability_items
-from .measurements_parser import SelectedMeasurements
+from .measurements import SelectedMeasurements
 from .models import SourceSnapshot
 from .station import Station
 

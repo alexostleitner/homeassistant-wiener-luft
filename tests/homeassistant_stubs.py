@@ -274,7 +274,7 @@ def make_metric(
     unit: str = "μg/m³",
     measured_at=None,
 ):
-    from custom_components.wiener_luft.measurements_parser import SelectedMetric
+    from custom_components.wiener_luft.measurements import SelectedMetric
 
     return SelectedMetric(value, unit, measurement_type, measured_at)
 

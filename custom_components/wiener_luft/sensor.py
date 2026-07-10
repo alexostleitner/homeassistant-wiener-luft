@@ -11,8 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN
 from .coordinator import IntegrationCoordinator
-from .measurements import MEASUREMENT_SPECS
-from .measurements_parser import MeasurementKey
+from .measurements import MEASUREMENT_SPECS, MeasurementKey
 from .sensor_entity import MeasurementSensor
 from .station import Station
 

@@ -24,7 +24,7 @@ from .const import (
 )
 from .exceptions import IntegrationError
 from .fetch import async_fetch_measurements, async_fetch_stations
-from .measurements_parser import MeasurementKey, SelectedMeasurements
+from .measurements import MeasurementKey, SelectedMeasurements
 from .models import IntegrationData
 from .snapshots import (
     build_station_snapshot,
