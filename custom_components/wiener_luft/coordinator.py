@@ -18,7 +18,7 @@ from .const import (
     STATION_SNAPSHOT,
     STATION_UPDATE_INTERVAL,
 )
-from .exceptions import IntegrationError
+from .exceptions import FlowFetchError
 from .fetch import async_fetch_measurements, async_fetch_stations
 from .measurements import MeasurementKey, SelectedMeasurements
 from .models import IntegrationData
@@ -73,7 +73,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
         self._stations_last_refresh_attempt = now
         try:
             self._cached_stations = await async_fetch_stations(self.hass)
-        except IntegrationError as err:
+        except FlowFetchError as err:
             if not self._cached_stations:
                 raise UpdateFailed("Could not load station metadata") from err
             LOGGER.warning("Could not refresh station metadata; keeping cached data")
@@ -114,7 +114,7 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
 
         try:
             return await async_fetch_measurements(self.hass)
-        except IntegrationError as err:
+        except FlowFetchError as err:
             raise UpdateFailed(
                 "Could not update Wiener Luftmessnetz measurements"
             ) from err
