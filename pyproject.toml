@@ -59,6 +59,14 @@ select = ["E", "F", "I", "B", "UP", "C90", "SIM", "RUF", "PERF"]
 [tool.ruff.lint.mccabe]
 max-complexity = 6
 
+[tool.coverage.run]
+branch = true
+source = ["custom_components/wiener_luft"]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+
 [tool.complexipy]
 paths = ["custom_components", "tests"]
 max-complexity-allowed = 8
