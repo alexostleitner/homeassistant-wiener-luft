@@ -44,3 +44,15 @@ class IntegrationSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await integration_module.async_unload_entry(hass, entry))
         self.assertIsNone(entry.runtime_data)
         hass.config_entries.async_unload_platforms.assert_awaited_once()
+
+    async def test_unload_failure_keeps_runtime_data(self) -> None:
+        coordinator = types.SimpleNamespace()
+        hass = make_hass(
+            config_entries=types.SimpleNamespace(
+                async_unload_platforms=AsyncMock(return_value=False),
+            )
+        )
+        entry = make_entry(runtime_data=coordinator)
+
+        self.assertFalse(await integration_module.async_unload_entry(hass, entry))
+        self.assertIs(entry.runtime_data, coordinator)

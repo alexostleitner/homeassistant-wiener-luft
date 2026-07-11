@@ -25,6 +25,7 @@ class ParsingHelpersTest(unittest.TestCase):
         cases = (
             (None, None),
             (-999, None),
+            (4, 4.0),
             ("1,23", 1.23),
             (" 4.5 ", 4.5),
         )

@@ -134,3 +134,25 @@ class StationGeoJsonParsingTest(unittest.TestCase):
 
         self.assertIsNone(stations["STA1"].longitude)
         self.assertIsNone(stations["STA1"].latitude)
+
+    def test_parse_station_geojson_handles_invalid_geometry(self) -> None:
+        stations = parse_station_geojson(
+            {
+                "features": [
+                    {"properties": {"NAME_KURZ": "STA1"}, "geometry": []},
+                    {
+                        "properties": {"NAME_KURZ": "STA2"},
+                        "geometry": {"coordinates": "invalid"},
+                    },
+                    {
+                        "properties": {"NAME_KURZ": "STA3"},
+                        "geometry": {"coordinates": [{}, []]},
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual({"STA1", "STA2", "STA3"}, set(stations))
+        self.assertIsNone(stations["STA1"].latitude)
+        self.assertIsNone(stations["STA2"].longitude)
+        self.assertIsNone(stations["STA3"].latitude)

@@ -52,6 +52,30 @@ class LumesCsvParsingTest(unittest.TestCase):
             sum("has" in message and "expected" in message for message in logs.output),
         )
 
+    def test_parse_lumes_csv_ignores_blank_station_rows(self) -> None:
+        parsed = self._parse(
+            "Lumes;v2.10;01.01.2026-00:00:00",
+            ";PM10",
+            ";HMW",
+            ";µg/m³",
+            "",
+            ";1,2",
+            "STA1;3,4",
+        )
+
+        self.assertEqual({("STA1", "PM10")}, set(parsed))
+
+    def test_parse_lumes_csv_handles_declared_missing_timezone(self) -> None:
+        parsed = self._parse(
+            "Lumes;v2.10;01.01.2026-00:00:00",
+            ";Zeit-PM10;PM10",
+            ";;HMW",
+            ";---;µg/m³",
+            "STA1;24.06.2026, 22:30;1,2",
+        )
+
+        self.assertIsNone(parsed[("STA1", "PM10")].measured_at)
+
     def test_parse_lumes_csv_handles_missing_and_shifted_time_blocks(self) -> None:
         missing = self._parse(
             "Lumes;v2.10;01.01.2026-00:00:00",

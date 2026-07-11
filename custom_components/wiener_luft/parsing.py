@@ -17,8 +17,6 @@ def decode_payload(payload: str | bytes) -> str:
         except UnicodeDecodeError:
             continue
 
-    return payload.decode("latin-1", errors="replace")
-
 
 def parse_number(value: str | int | float | None) -> float | None:
     """Parse a source number, treating declared placeholders as missing."""
@@ -27,8 +25,6 @@ def parse_number(value: str | int | float | None) -> float | None:
         return None
     if isinstance(value, int | float):
         return float(value)
-    if value is None:
-        return None
 
     try:
         return float(value.strip().replace(",", "."))

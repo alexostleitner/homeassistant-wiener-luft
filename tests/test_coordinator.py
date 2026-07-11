@@ -114,6 +114,23 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, urlopen_mock.call_count)
         self.assertEqual({"STA1", "STA2"}, set(coordinator._cached_stations))
 
+    async def test_refresh_stations_without_config_entry(self) -> None:
+        coordinator = coordinator_module.IntegrationCoordinator(make_hass())
+        stations = {"STA1": make_station("STA1", "Alpha")}
+
+        with (
+            patch.object(
+                coordinator_module,
+                "async_fetch_stations",
+                return_value=stations,
+            ),
+            patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
+        ):
+            refreshed = await coordinator.async_refresh_stations(force=True)
+
+        self.assertTrue(refreshed)
+        self.assertEqual(stations, coordinator._cached_stations)
+
     async def test_refresh_stations_raises_without_cached_data(self) -> None:
         coordinator, _async_update_entry = make_coordinator()
 
@@ -166,6 +183,37 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             coordinator.config_entry.data[coordinator_module.STATION_SNAPSHOT],
         )
         async_update_entry.assert_called_once()
+
+    async def test_refresh_stations_skips_unchanged_station_snapshot(self) -> None:
+        stations = {
+            "STA1": make_station(
+                code="STA1",
+                name="Station Alpha",
+                district=3,
+                latitude=48.21,
+                longitude=16.31,
+            )
+        }
+        coordinator, async_update_entry = make_coordinator(
+            data={
+                coordinator_module.STATION_SNAPSHOT: (
+                    snapshots_module.build_station_snapshot(stations)
+                )
+            }
+        )
+
+        with (
+            patch.object(
+                coordinator_module,
+                "async_fetch_stations",
+                return_value=stations,
+            ),
+            patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
+        ):
+            refreshed = await coordinator.async_refresh_stations(force=True)
+
+        self.assertTrue(refreshed)
+        async_update_entry.assert_not_called()
 
     async def test_async_setup_loads_cached_station_snapshot(self) -> None:
         cached_stations = {
@@ -389,6 +437,16 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                         }
                     )
                 )
+
+    def test_restore_station_snapshot_rejects_mismatched_or_invalid_codes(self) -> None:
+        self.assertIsNone(
+            snapshots_module.restore_station_snapshot(
+                {"STA1": {"code": "STA2", "name": "Station Alpha"}}
+            )
+        )
+        self.assertIsNone(
+            snapshots_module.restore_station_snapshot({1: {"name": "Station Alpha"}})
+        )
 
     def test_station_snapshot_roundtrip(self) -> None:
         stations = {
