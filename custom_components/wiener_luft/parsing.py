@@ -11,17 +11,18 @@ def decode_payload(payload: str | bytes) -> str:
     if isinstance(payload, str):
         return payload
 
-    for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+    for encoding in ("utf-8-sig", "utf-8", "cp1252"):
         try:
             return payload.decode(encoding)
         except UnicodeDecodeError:
             continue
+    return payload.decode("latin-1")
 
 
 def parse_number(value: str | int | float | None) -> float | None:
     """Parse a source number, treating declared placeholders as missing."""
 
-    if is_missing_number(value):
+    if value is None or is_missing_number(value):
         return None
     if isinstance(value, int | float):
         return float(value)

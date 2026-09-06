@@ -21,6 +21,9 @@ class ParsingHelpersTest(unittest.TestCase):
     def test_decode_payload_uses_cp1252(self) -> None:
         self.assertEqual("abc\u2013def", decode_payload(b"abc\x96def"))
 
+    def test_decode_payload_falls_back_to_latin_1(self) -> None:
+        self.assertEqual("\x81", decode_payload(b"\x81"))
+
     def test_parse_number_handles_common_inputs(self) -> None:
         cases = (
             (None, None),
