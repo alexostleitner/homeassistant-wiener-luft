@@ -105,8 +105,8 @@ class MeasurementSensor(CoordinatorEntity[IntegrationCoordinator], SensorEntity)
     def extra_state_attributes(self) -> dict[str, Any]:
         attributes = self._station_state_attributes(self._current_station)
         reading = self._reading
-        if reading is not None and reading.measurement_type is not None:
-            attributes["interval"] = reading.measurement_type
+        if reading is not None and reading.averaging_interval is not None:
+            attributes["interval"] = reading.averaging_interval
         return attributes
 
     def async_write_ha_state(self) -> None:
@@ -199,7 +199,7 @@ class MeasurementSensor(CoordinatorEntity[IntegrationCoordinator], SensorEntity)
             return
 
         previous_interval = old_state.attributes.get("interval")
-        current_interval = reading.measurement_type
+        current_interval = reading.averaging_interval
         if (
             previous_interval is None
             or current_interval is None

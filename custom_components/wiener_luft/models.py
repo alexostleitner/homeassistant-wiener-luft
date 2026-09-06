@@ -32,7 +32,7 @@ class IntegrationData:
                 if station_code in self.stations
                 and measurement_code in MEASUREMENT_SPECS
                 and reading.value is not None
-                and reading.measurement_type is not None
+                and reading.averaging_interval is not None
             },
         )
 

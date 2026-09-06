@@ -159,7 +159,7 @@ class _SensorPlatformSetup:
                 if (
                     reading is None
                     or reading.value is None
-                    or reading.measurement_type is None
+                    or reading.averaging_interval is None
                 ):
                     continue
 

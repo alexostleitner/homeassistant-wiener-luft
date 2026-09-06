@@ -31,7 +31,7 @@ class MeasurementColumn:
     """Header metadata for one measurement value column."""
 
     value_index: int
-    averaging_type: str
+    averaging_interval: str
     unit: str
     time_index: int | None
     time_zone: str | None
@@ -83,9 +83,9 @@ def _choose_column(
         [
             column
             for column in candidates
-            if column.averaging_type in MEASUREMENT_PRIORITY
+            if column.averaging_interval in MEASUREMENT_PRIORITY
         ],
-        key=lambda column: MEASUREMENT_PRIORITY.index(column.averaging_type),
+        key=lambda column: MEASUREMENT_PRIORITY.index(column.averaging_interval),
     )
     for column in matching_columns:
         raw_value = _column_value(row, column)
@@ -144,8 +144,8 @@ def _collect_columns(
             current_time_zone = unit_row[index].strip() or None
             continue
 
-        averaging_type = averaging_row[index].strip()
-        if not averaging_type:
+        averaging_interval = averaging_row[index].strip()
+        if not averaging_interval:
             continue
 
         component = name.strip()
@@ -157,7 +157,7 @@ def _collect_columns(
         columns_by_component.setdefault(component, []).append(
             MeasurementColumn(
                 value_index=index,
-                averaging_type=averaging_type,
+                averaging_interval=averaging_interval,
                 unit=unit,
                 time_index=current_time_index,
                 time_zone=current_time_zone,
@@ -234,14 +234,14 @@ def _build_selected_metric(
         return SelectedMetric(
             value=None,
             unit=unit,
-            measurement_type=None,
+            averaging_interval=None,
             measured_at=None,
         )
 
     return SelectedMetric(
         value=parse_number(_column_value(row, chosen_column)),
         unit=chosen_column.unit,
-        measurement_type=chosen_column.averaging_type,
+        averaging_interval=chosen_column.averaging_interval,
         measured_at=_parse_measured_at(row, chosen_column),
     )
 

@@ -378,7 +378,7 @@ class MeasurementSensorTest(unittest.TestCase):
         )
         self.assertEqual(180.0, sensor.native_value)
 
-    def test_extra_state_attributes_skip_interval_without_measurement_type(
+    def test_extra_state_attributes_skip_interval_without_averaging_interval(
         self,
     ) -> None:
         sensor = MeasurementSensor(

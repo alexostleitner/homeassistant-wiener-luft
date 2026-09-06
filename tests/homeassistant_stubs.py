@@ -281,14 +281,14 @@ def make_station(
 
 def make_metric(
     value: float | None,
-    measurement_type: str | None,
+    averaging_interval: str | None,
     *,
     unit: str = "μg/m³",
     measured_at=None,
 ):
     from custom_components.wiener_luft.measurements import SelectedMetric
 
-    return SelectedMetric(value, unit, measurement_type, measured_at)
+    return SelectedMetric(value, unit, averaging_interval, measured_at)
 
 
 def make_data(

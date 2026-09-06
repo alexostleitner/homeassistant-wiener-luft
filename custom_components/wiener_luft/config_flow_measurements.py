@@ -20,7 +20,7 @@ def _count_available_measurements(
     for station_code in selected_station_codes:
         for component in MEASUREMENT_SPECS:
             reading = integration_data.measurements.get((station_code, component))
-            if reading is None or reading.measurement_type is None:
+            if reading is None or reading.averaging_interval is None:
                 continue
             counts[component] += 1
     return counts

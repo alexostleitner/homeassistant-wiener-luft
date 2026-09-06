@@ -182,7 +182,7 @@ class LumesCsvParsingTest(unittest.TestCase):
             parsed[("STA1", "O3")].measured_at,
         )
 
-    def test_parse_lumes_csv_sets_measurement_type_none_without_valid_value(
+    def test_parse_lumes_csv_sets_averaging_interval_none_without_valid_value(
         self,
     ) -> None:
         parsed = self._parse(
@@ -196,7 +196,7 @@ class LumesCsvParsingTest(unittest.TestCase):
         metric = parsed[("STA1", "PM10")]
         self.assertEqual(
             (None, None, "μg/m³"),
-            (metric.value, metric.measurement_type, metric.unit),
+            (metric.value, metric.averaging_interval, metric.unit),
         )
 
     def test_parse_lumes_csv_uses_fixture_priority_rules(self) -> None:
@@ -232,7 +232,7 @@ class LumesCsvParsingTest(unittest.TestCase):
                 metric = parsed[key]
                 self.assertEqual(
                     expected_value,
-                    (metric.value, metric.measurement_type, metric.unit),
+                    (metric.value, metric.averaging_interval, metric.unit),
                 )
                 if metric.value is None:
                     self.assertIsNone(metric.measured_at)

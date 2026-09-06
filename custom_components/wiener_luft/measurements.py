@@ -26,7 +26,7 @@ class SelectedMetric:
 
     value: float | None
     unit: str
-    measurement_type: str | None
+    averaging_interval: str | None
     measured_at: datetime | None
 
 
