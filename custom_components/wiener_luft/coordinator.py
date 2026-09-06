@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    DOMAIN,
     MEASUREMENT_UPDATE_INTERVAL,
     NAME,
     SOURCE_SNAPSHOT,
@@ -75,8 +76,14 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
             self._cached_stations = await async_fetch_stations(self.hass)
         except FlowFetchError as err:
             if not self._cached_stations:
-                raise UpdateFailed("Could not load station metadata") from err
-            LOGGER.warning("Could not refresh station metadata; keeping cached data")
+                raise UpdateFailed(
+                    translation_domain=DOMAIN,
+                    translation_key=f"stations_{err.reason}",
+                ) from err
+            LOGGER.warning(
+                "Could not refresh station metadata (%s); keeping cached data",
+                err.reason,
+            )
             return False
 
         if self.config_entry is not None:
@@ -116,7 +123,8 @@ class IntegrationCoordinator(DataUpdateCoordinator[IntegrationData]):
             return await async_fetch_measurements(self.hass)
         except FlowFetchError as err:
             raise UpdateFailed(
-                "Could not update Wiener Luftmessnetz measurements"
+                translation_domain=DOMAIN,
+                translation_key=f"measurements_{err.reason}",
             ) from err
 
     def _log_source_changes(self, integration_data: IntegrationData) -> None:

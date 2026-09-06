@@ -26,6 +26,12 @@ REQUIRED_MANIFEST_KEYS = {
     "single_config_entry",
     "version",
 }
+REQUIRED_EXCEPTION_KEYS = {
+    "measurements_cannot_connect",
+    "measurements_invalid_response",
+    "stations_cannot_connect",
+    "stations_invalid_response",
+}
 
 
 class MetadataTest(unittest.TestCase):
@@ -64,4 +70,7 @@ class MetadataTest(unittest.TestCase):
             translation_path = translations_dir / f"{locale}.json"
             self.assertTrue(translation_path.is_file(), translation_path)
             with translation_path.open("r", encoding="utf-8") as file:
-                json.load(file)
+                translations = json.load(file)
+            self.assertTrue(
+                REQUIRED_EXCEPTION_KEYS.issubset(translations["exceptions"])
+            )

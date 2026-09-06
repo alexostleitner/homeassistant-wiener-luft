@@ -90,6 +90,20 @@ class _DataUpdateCoordinator:
             callback()
 
 
+class _UpdateFailed(Exception):
+    def __init__(
+        self,
+        *args: Any,
+        retry_after: float | None = None,
+        translation_domain: str | None = None,
+        translation_key: str | None = None,
+    ) -> None:
+        super().__init__(*args)
+        self.retry_after = retry_after
+        self.translation_domain = translation_domain
+        self.translation_key = translation_key
+
+
 async def _async_add_executor_job(func, *args):
     return func(*args)
 
@@ -202,9 +216,7 @@ def install_homeassistant_stubs() -> None:
     modules[
         "homeassistant.helpers.update_coordinator"
     ].DataUpdateCoordinator = _DataUpdateCoordinator
-    modules["homeassistant.helpers.update_coordinator"].UpdateFailed = type(
-        "UpdateFailed", (Exception,), {}
-    )
+    modules["homeassistant.helpers.update_coordinator"].UpdateFailed = _UpdateFailed
     modules["homeassistant.util.dt"].utcnow = lambda: None
     modules["homeassistant.util"].slugify = lambda value: value.lower().replace(
         " ", "_"

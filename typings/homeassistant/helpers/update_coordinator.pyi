@@ -1,7 +1,17 @@
 from collections.abc import Callable
 from typing import Any
 
-class UpdateFailed(Exception): ...
+class UpdateFailed(Exception):
+    translation_domain: str | None
+    translation_key: str | None
+
+    def __init__(
+        self,
+        *args: Any,
+        retry_after: float | None = ...,
+        translation_domain: str | None = ...,
+        translation_key: str | None = ...,
+    ) -> None: ...
 
 class DataUpdateCoordinator[T]:
     hass: Any

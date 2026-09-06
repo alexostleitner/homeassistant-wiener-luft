@@ -139,9 +139,11 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                 fetch_module, "urlopen", side_effect=RuntimeError("network down")
             ),
             patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
-            self.assertRaises(coordinator_module.UpdateFailed),
+            self.assertRaises(coordinator_module.UpdateFailed) as err,
         ):
             await coordinator.async_refresh_stations(force=True)
+
+        self.assertEqual("stations_invalid_response", err.exception.translation_key)
 
     async def test_refresh_stations_keeps_cached_data_on_failure(self) -> None:
         coordinator, _async_update_entry = make_coordinator()
@@ -160,11 +162,13 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                 fetch_module, "urlopen", side_effect=RuntimeError("network down")
             ),
             patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
+            self.assertLogs(coordinator_module.LOGGER.name, level="WARNING") as logs,
         ):
             refreshed = await coordinator.async_refresh_stations(force=True)
 
         self.assertFalse(refreshed)
         self.assertEqual({"STA1"}, set(coordinator._cached_stations))
+        self.assertIn("invalid_response", logs.output[0])
 
     async def test_refresh_stations_persists_station_snapshot(self) -> None:
         coordinator, async_update_entry = make_coordinator()
@@ -393,9 +397,11 @@ class IntegrationCoordinatorTest(unittest.IsolatedAsyncioTestCase):
                 ],
             ),
             patch.object(coordinator_module.dt_util, "utcnow", return_value=NOW),
-            self.assertRaises(coordinator_module.UpdateFailed),
+            self.assertRaises(coordinator_module.UpdateFailed) as err,
         ):
             await coordinator._async_update_data()
+
+        self.assertEqual("measurements_invalid_response", err.exception.translation_key)
 
     def test_snapshot_parsers_reject_invalid_values(self) -> None:
         for value in (
