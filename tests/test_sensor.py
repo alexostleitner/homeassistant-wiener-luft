@@ -247,9 +247,53 @@ class MeasurementSensorTest(unittest.TestCase):
         self.assertEqual(1, len(logs.output))
         self.assertIn("changed from μg/m³ to mg/m³", logs.output[0])
 
-        sensor.hass.states.get.return_value = make_state(unit_of_measurement="mg/m³")
         with self.assertNoLogs("custom_components.wiener_luft.sensor", level="WARNING"):
             sensor.async_write_ha_state()
+
+    def test_unit_change_ignores_converted_display_unit(self) -> None:
+        sensor = MeasurementSensor(
+            make_coordinator(
+                make_data({("STA1", "LTM"): make_metric(20.0, "HMW", unit="°C")})
+            ),
+            make_station(),
+            "LTM",
+            MEASUREMENT_SPECS["LTM"],
+        )
+        sensor.entity_id = "sensor.temperature_sta1"
+        sensor.hass = make_hass(
+            states={"sensor.temperature_sta1": make_state(unit_of_measurement="°F")}
+        )
+
+        with self.assertNoLogs("custom_components.wiener_luft.sensor", level="WARNING"):
+            sensor.async_write_ha_state()
+            sensor.async_write_ha_state()
+
+    def test_unit_change_keeps_last_source_unit_when_readings_disappear(self) -> None:
+        data = make_data({("STA1", "PM25"): make_metric(0.0123, "1MW", unit="mg/m³")})
+        coordinator = make_coordinator(data)
+        sensor = MeasurementSensor(
+            coordinator, make_station(), "PM25", MEASUREMENT_SPECS["PM25"]
+        )
+        sensor.entity_id = "sensor.pm25_sta1"
+        sensor.hass = make_hass(
+            states={"sensor.pm25_sta1": make_state(unit_of_measurement="mg/m³")}
+        )
+        sensor.async_write_ha_state()
+
+        with self.assertNoLogs("custom_components.wiener_luft.sensor", level="WARNING"):
+            coordinator.data = make_data({})
+            sensor.async_write_ha_state()
+            coordinator.data = None
+            sensor.async_write_ha_state()
+
+        coordinator.data = make_data({("STA1", "PM25"): make_metric(12.3, "1MW")})
+        with self.assertLogs(
+            "custom_components.wiener_luft.sensor", level="WARNING"
+        ) as logs:
+            sensor.async_write_ha_state()
+
+        self.assertEqual(1, len(logs.output))
+        self.assertIn("changed from mg/m³ to μg/m³", logs.output[0])
 
     def test_entity_ids_and_precisions_follow_measurement_specs(self) -> None:
         coordinator = make_coordinator(make_data({}))

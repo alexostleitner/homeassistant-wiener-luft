@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import unicodedata
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -48,6 +47,7 @@ class MeasurementSensor(CoordinatorEntity[IntegrationCoordinator], SensorEntity)
         self._station = station
         self._measurement_code = measurement_code
         self._measurement_spec = measurement_spec
+        self._last_source_unit: str | None = None
 
         self._attr_translation_key = measurement_spec.translation_key
         self._attr_device_class = (
@@ -166,19 +166,13 @@ class MeasurementSensor(CoordinatorEntity[IntegrationCoordinator], SensorEntity)
         return False
 
     def _log_unit_change(self) -> None:
-        if self.hass is None or self.entity_id is None:
+        reading = self._reading
+        if self.hass is None or self.entity_id is None or reading is None:
             return
 
-        old_state = self.hass.states.get(self.entity_id)
-        if old_state is None:
-            return
-
-        previous_unit = old_state.attributes.get("unit_of_measurement")
-        if previous_unit is not None:
-            previous_unit = previous_unit.replace(
-                "\u00b5", unicodedata.normalize("NFKC", "\u00b5")
-            )
-        current_unit = self.native_unit_of_measurement
+        previous_unit = self._last_source_unit
+        current_unit = reading.unit
+        self._last_source_unit = current_unit
         if previous_unit is None or previous_unit == current_unit:
             return
 
