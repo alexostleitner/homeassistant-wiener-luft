@@ -26,15 +26,22 @@ REQUIRED_MANIFEST_KEYS = {
     "single_config_entry",
     "version",
 }
+REQUIRED_EXCEPTION_KEYS = {
+    "measurements_cannot_connect",
+    "measurements_invalid_response",
+    "stations_cannot_connect",
+    "stations_invalid_response",
+}
 
 
 class MetadataTest(unittest.TestCase):
-    def test_manifest_and_translations(self) -> None:
+    def test_required_metadata_files_exist(self) -> None:
         self.assertTrue(INTEGRATION_DIR.is_dir())
         self.assertTrue(MANIFEST_PATH.is_file())
         self.assertTrue(HACS_PATH.is_file())
         self.assertTrue(BRAND_ICON_PATH.is_file())
 
+    def test_manifest_matches_project_metadata(self) -> None:
         with MANIFEST_PATH.open("r", encoding="utf-8") as file:
             manifest = json.load(file)
 
@@ -49,6 +56,7 @@ class MetadataTest(unittest.TestCase):
 
         self.assertEqual(manifest["version"], project_data["project"]["version"])
 
+    def test_hacs_and_translations_match_integration_metadata(self) -> None:
         with HACS_PATH.open("r", encoding="utf-8") as file:
             hacs_manifest = json.load(file)
 
@@ -62,4 +70,7 @@ class MetadataTest(unittest.TestCase):
             translation_path = translations_dir / f"{locale}.json"
             self.assertTrue(translation_path.is_file(), translation_path)
             with translation_path.open("r", encoding="utf-8") as file:
-                json.load(file)
+                translations = json.load(file)
+            self.assertTrue(
+                REQUIRED_EXCEPTION_KEYS.issubset(translations["exceptions"])
+            )

@@ -6,7 +6,7 @@ import types
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from homeassistant_stubs import install_homeassistant_stubs
+from homeassistant_stubs import install_homeassistant_stubs, make_entry, make_hass
 
 install_homeassistant_stubs()
 
@@ -22,13 +22,13 @@ class IntegrationSetupTest(unittest.IsolatedAsyncioTestCase):
 
         coordinator.async_config_entry_first_refresh = first_refresh
         coordinator.data = types.SimpleNamespace(stations={}, measurements={})
-        hass = types.SimpleNamespace(
+        hass = make_hass(
             config_entries=types.SimpleNamespace(
                 async_forward_entry_setups=AsyncMock(return_value=True),
                 async_unload_platforms=AsyncMock(return_value=True),
             )
         )
-        entry = types.SimpleNamespace(runtime_data=None, data={}, options={})
+        entry = make_entry()
 
         with patch.object(
             integration_module,
@@ -44,3 +44,15 @@ class IntegrationSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await integration_module.async_unload_entry(hass, entry))
         self.assertIsNone(entry.runtime_data)
         hass.config_entries.async_unload_platforms.assert_awaited_once()
+
+    async def test_unload_failure_keeps_runtime_data(self) -> None:
+        coordinator = types.SimpleNamespace()
+        hass = make_hass(
+            config_entries=types.SimpleNamespace(
+                async_unload_platforms=AsyncMock(return_value=False),
+            )
+        )
+        entry = make_entry(runtime_data=coordinator)
+
+        self.assertFalse(await integration_module.async_unload_entry(hass, entry))
+        self.assertIs(entry.runtime_data, coordinator)

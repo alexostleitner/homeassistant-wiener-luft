@@ -1,4 +1,4 @@
-"""Parsers and normalized data models for measurement payloads."""
+"""Parser for measurement payloads."""
 
 from __future__ import annotations
 
@@ -11,8 +11,10 @@ from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from .measurements import (
     MEASUREMENT_PRIORITY,
     MEASUREMENT_SPECS,
+    SelectedMeasurements,
+    SelectedMetric,
 )
-from .parsing import MISSING_VALUES, decode_payload, parse_number
+from .parsing import MISSING_VALUES, decode_payload, is_missing_number, parse_number
 
 LOGGER = logging.getLogger(__name__)
 TIMEZONES: dict[str, tzinfo] = {
@@ -25,16 +27,17 @@ TIMEZONES: dict[str, tzinfo] = {
 
 
 @dataclass(frozen=True, slots=True)
-class SelectedMetric:
-    """Selected measurement value."""
+class MeasurementColumn:
+    """Header metadata for one measurement value column."""
 
-    value: float | None
+    value_index: int
+    averaging_interval: str
     unit: str
-    measurement_type: str | None
-    measured_at: datetime | None
+    time_index: int | None
+    time_zone: str | None
 
 
-def parse_lumes_csv(payload: str | bytes) -> dict[tuple[str, str], SelectedMetric]:
+def parse_lumes_csv(payload: str | bytes) -> SelectedMeasurements:
     """Parse the Lumes v2 CSV and select one reading per station/measurement."""
 
     text = decode_payload(payload)
@@ -43,7 +46,7 @@ def parse_lumes_csv(payload: str | bytes) -> dict[tuple[str, str], SelectedMetri
     component_row, averaging_row, unit_row = _parse_lumes_header(rows)
     columns_by_component = _collect_columns(component_row, averaging_row, unit_row)
     width = len(component_row)
-    selected: dict[tuple[str, str], SelectedMetric] = {}
+    selected: SelectedMeasurements = {}
 
     for row_number, row in enumerate(rows[4:], start=5):
         if not row or not row[0].strip():
@@ -70,18 +73,35 @@ def parse_lumes_csv(payload: str | bytes) -> dict[tuple[str, str], SelectedMetri
 
 
 def _choose_column(
-    row: list[str], candidates: list[tuple[int, str, str, int | None, str | None]]
-) -> tuple[int, str, str, int | None, str | None] | None:
-    for averaging_type in MEASUREMENT_PRIORITY:
-        for column in candidates:
-            if column[1] != averaging_type:
-                continue
-            if (
-                parse_number(row[column[0]] if column[0] < len(row) else None)
-                is not None
-            ):
-                return column
+    station_code: str,
+    component: str,
+    row: list[str],
+    candidates: list[MeasurementColumn],
+) -> MeasurementColumn | None:
+    invalid_value: str | int | float | None = None
+    matching_columns = sorted(
+        [
+            column
+            for column in candidates
+            if column.averaging_interval in MEASUREMENT_PRIORITY
+        ],
+        key=lambda column: MEASUREMENT_PRIORITY.index(column.averaging_interval),
+    )
+    for column in matching_columns:
+        raw_value = _column_value(row, column)
+        if parse_number(raw_value) is not None:
+            return column
+        if invalid_value is None and not is_missing_number(raw_value):
+            invalid_value = raw_value
+
+    _log_invalid_measurement_value(station_code, component, invalid_value)
     return None
+
+
+def _column_value(row: list[str], column: MeasurementColumn) -> str | None:
+    """Return the raw CSV value for one measurement column."""
+
+    return row[column.value_index] if column.value_index < len(row) else None
 
 
 def _parse_lumes_header(
@@ -98,11 +118,7 @@ def _parse_lumes_header(
         raise ValueError(msg)
 
     expected_components = set(MEASUREMENT_SPECS)
-    actual_components = {
-        name
-        for name in (raw_name.strip() for raw_name in component_row)
-        if name and not name.startswith("Zeit-")
-    }
+    actual_components = _measurement_components(component_row)
     missing_components = sorted(expected_components - actual_components)
     unexpected_components = sorted(actual_components - expected_components)
     if missing_components or unexpected_components:
@@ -117,10 +133,8 @@ def _parse_lumes_header(
 
 def _collect_columns(
     component_row: list[str], averaging_row: list[str], unit_row: list[str]
-) -> dict[str, list[tuple[int, str, str, int | None, str | None]]]:
-    columns_by_component: dict[
-        str, list[tuple[int, str, str, int | None, str | None]]
-    ] = {}
+) -> dict[str, list[MeasurementColumn]]:
+    columns_by_component: dict[str, list[MeasurementColumn]] = {}
     current_time_index: int | None = None
     current_time_zone: str | None = None
     for index, raw_name in enumerate(component_row):
@@ -130,8 +144,8 @@ def _collect_columns(
             current_time_zone = unit_row[index].strip() or None
             continue
 
-        averaging_type = averaging_row[index].strip()
-        if not averaging_type:
+        averaging_interval = averaging_row[index].strip()
+        if not averaging_interval:
             continue
 
         component = name.strip()
@@ -139,61 +153,134 @@ def _collect_columns(
             continue
 
         spec = MEASUREMENT_SPECS[component]
-        unit = (
-            unit_row[index]
-            .strip()
-            .replace("\u00b5", unicodedata.normalize("NFKC", "\u00b5"))
-            or spec.unit
-        )
+        unit = _normalized_unit(unit_row[index], spec.unit)
         columns_by_component.setdefault(component, []).append(
-            (index, averaging_type, unit, current_time_index, current_time_zone)
+            MeasurementColumn(
+                value_index=index,
+                averaging_interval=averaging_interval,
+                unit=unit,
+                time_index=current_time_index,
+                time_zone=current_time_zone,
+            )
         )
     return columns_by_component
 
 
+def _normalized_unit(raw_unit: str, fallback_unit: str) -> str:
+    """Normalize one measurement unit header value."""
+
+    normalized_unit = raw_unit.strip().replace(
+        "\u00b5", unicodedata.normalize("NFKC", "\u00b5")
+    )
+    return normalized_unit or fallback_unit
+
+
+def _measurement_components(component_row: list[str]) -> set[str]:
+    """Return the measurement component names declared in the CSV header."""
+
+    actual_components: set[str] = set()
+    for raw_name in component_row:
+        name = raw_name.strip()
+        if not name or name.startswith("Zeit-"):
+            continue
+        actual_components.add(name)
+    return actual_components
+
+
+def _log_invalid_measurement_value(
+    station_code: str,
+    component: str,
+    invalid_value: str | int | float | None,
+) -> None:
+    """Log the first unusable measurement value for one station/component."""
+
+    if invalid_value is None:
+        return
+
+    LOGGER.warning(
+        "Could not parse measurement value %r for station %s component %s",
+        invalid_value,
+        station_code,
+        component,
+    )
+
+
 def _select_row_measurements(
-    selected: dict[tuple[str, str], SelectedMetric],
+    selected: SelectedMeasurements,
     station_code: str,
     row: list[str],
-    columns_by_component: dict[str, list[tuple[int, str, str, int | None, str | None]]],
+    columns_by_component: dict[str, list[MeasurementColumn]],
 ) -> None:
     for component, component_columns in columns_by_component.items():
-        chosen_column = _choose_column(row, component_columns)
-        unit = component_columns[0][2] or MEASUREMENT_SPECS[component].unit
-        if chosen_column is None:
-            selected[(station_code, component)] = SelectedMetric(
-                value=None,
-                unit=unit,
-                measurement_type=None,
-                measured_at=None,
-            )
-            continue
-
-        index, averaging_type, chosen_unit, time_index, time_zone = chosen_column
-        measured_at_text = (
-            row[time_index]
-            if time_index is not None and time_index < len(row)
-            else None
+        chosen_column = _choose_column(station_code, component, row, component_columns)
+        selected[(station_code, component)] = _build_selected_metric(
+            component,
+            row,
+            component_columns,
+            chosen_column,
         )
-        measured_at: datetime | None = None
-        parsed_time_zone: tzinfo | None = None
-        if time_zone is not None:
-            time_zone_text = time_zone.strip().upper()
-            if time_zone_text and time_zone_text not in MISSING_VALUES:
-                parsed_time_zone = TIMEZONES.get(time_zone_text)
-                if parsed_time_zone is None:
-                    LOGGER.warning("Could not parse timezone value %r", time_zone)
-        if measured_at_text is not None and parsed_time_zone is not None:
-            try:
-                measured_at = datetime.strptime(
-                    measured_at_text, "%d.%m.%Y, %H:%M"
-                ).replace(tzinfo=parsed_time_zone)
-            except ValueError:
-                LOGGER.warning("Could not parse datetime value %r", measured_at_text)
 
-        selected[(station_code, component)] = SelectedMetric(
-            value=parse_number(row[index] if index < len(row) else None),
-            unit=chosen_unit or unit,
-            measurement_type=averaging_type,
-            measured_at=measured_at,
+
+def _build_selected_metric(
+    component: str,
+    row: list[str],
+    component_columns: list[MeasurementColumn],
+    chosen_column: MeasurementColumn | None,
+) -> SelectedMetric:
+    """Build the selected metric for one station/component row."""
+
+    unit = component_columns[0].unit
+    if chosen_column is None:
+        return SelectedMetric(
+            value=None,
+            unit=unit,
+            averaging_interval=None,
+            measured_at=None,
         )
+
+    return SelectedMetric(
+        value=parse_number(_column_value(row, chosen_column)),
+        unit=chosen_column.unit,
+        averaging_interval=chosen_column.averaging_interval,
+        measured_at=_parse_measured_at(row, chosen_column),
+    )
+
+
+def _parse_measured_at(
+    row: list[str],
+    chosen_column: MeasurementColumn,
+) -> datetime | None:
+    """Parse the measurement timestamp for one chosen CSV column."""
+
+    measured_at_text = (
+        row[chosen_column.time_index]
+        if chosen_column.time_index is not None and chosen_column.time_index < len(row)
+        else None
+    )
+    parsed_time_zone = _parse_time_zone(chosen_column.time_zone)
+    if measured_at_text is None or parsed_time_zone is None:
+        return None
+
+    try:
+        return datetime.strptime(measured_at_text, "%d.%m.%Y, %H:%M").replace(
+            tzinfo=parsed_time_zone
+        )
+    except ValueError:
+        LOGGER.warning("Could not parse datetime value %r", measured_at_text)
+        return None
+
+
+def _parse_time_zone(time_zone: str | None) -> tzinfo | None:
+    """Parse the persisted time zone label for one measurement column."""
+
+    if time_zone is None:
+        return None
+
+    time_zone_text = time_zone.strip().upper()
+    if not time_zone_text or time_zone_text in MISSING_VALUES:
+        return None
+
+    parsed_time_zone = TIMEZONES.get(time_zone_text)
+    if parsed_time_zone is None:
+        LOGGER.warning("Could not parse timezone value %r", time_zone)
+    return parsed_time_zone

@@ -1,8 +1,11 @@
-"""Measurement specs and source priority rules."""
+"""Measurement models, specs and source priority rules."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
+
+type MeasurementKey = tuple[str, str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +18,19 @@ class MeasurementSpec:
     device_class: str | None = None
     state_class: str = "MEASUREMENT"
     icon: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SelectedMetric:
+    """Selected measurement value."""
+
+    value: float | None
+    unit: str
+    averaging_interval: str | None
+    measured_at: datetime | None
+
+
+type SelectedMeasurements = dict[MeasurementKey, SelectedMetric]
 
 
 DISPLAY_PRECISION_BY_UNIT: dict[str, int] = {
@@ -96,4 +112,3 @@ MEASUREMENT_SPECS: dict[str, MeasurementSpec] = {
     ),
 }
 MEASUREMENT_PRIORITY = ("HMW", "1MW", "MW8", "MW24")
-MISSING_VALUES = frozenset({"", "NE", "-999", "—", "---", "⸻"})

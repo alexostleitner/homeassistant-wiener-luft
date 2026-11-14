@@ -1,128 +1,21 @@
-"""Sensor entities and setup helpers."""
+"""Sensor platform setup and entrypoint."""
 
 from __future__ import annotations
 
 import logging
-import unicodedata
-from typing import Any
 
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorEntity,
-    SensorStateClass,
-)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import slugify
 
-from .const import (
-    CALM_WIND_SPEED_MPS,
-    CONF_MEASUREMENTS,
-    CONF_STATIONS,
-    DOMAIN,
-)
+from .const import CONF_MEASUREMENTS, CONF_STATIONS, DOMAIN
 from .coordinator import IntegrationCoordinator
-from .measurements import (
-    DISPLAY_PRECISION_BY_UNIT,
-    MEASUREMENT_SPECS,
-    MeasurementSpec,
-)
-from .measurements_parser import SelectedMetric
-from .station import (
-    Station,
-    station_device_info,
-    station_state_attributes,
-)
+from .measurements import MEASUREMENT_SPECS, MeasurementKey
+from .sensor_entity import MeasurementSensor
+from .station import Station
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _build_unique_id(station_code: str, component: str) -> str:
-    """Build the stable unique ID for one station/measurement entity."""
-
-    return (
-        f"{DOMAIN}_{MEASUREMENT_SPECS[component].measurement_slug}_"
-        f"{slugify(station_code)}"
-    )
-
-
-def _sync_entity_registry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    selected_stations: set[str] | None,
-    selected_measurements: set[str] | None,
-) -> None:
-    """Enable or disable registry entries to match explicit selections."""
-
-    if selected_stations is None or selected_measurements is None:
-        return
-
-    selected_unique_ids = {
-        _build_unique_id(station_code, component)
-        for station_code in selected_stations
-        for component in selected_measurements
-    }
-    registry = er.async_get(hass)
-    for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if registry_entry.domain != "sensor" or not registry_entry.unique_id.startswith(
-            f"{DOMAIN}_"
-        ):
-            continue
-        if registry_entry.unique_id in selected_unique_ids:
-            if registry_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION:
-                registry.async_update_entity(
-                    registry_entry.entity_id,
-                    disabled_by=None,
-                )
-            continue
-        if registry_entry.disabled_by is None:
-            registry.async_update_entity(
-                registry_entry.entity_id,
-                disabled_by=er.RegistryEntryDisabler.INTEGRATION,
-            )
-
-
-def _build_entities(
-    coordinator: IntegrationCoordinator,
-    selected_stations: set[str] | None,
-    selected_measurements: set[str] | None,
-    known_entity_keys: set[tuple[str, str]] | None = None,
-) -> list[MeasurementSensor]:
-    if coordinator.data is None:
-        return []
-
-    entities: list[MeasurementSensor] = []
-    for station_code, station in coordinator.data.stations.items():
-        if selected_stations is not None and station_code not in selected_stations:
-            continue
-
-        components = (
-            (
-                component
-                for component in MEASUREMENT_SPECS
-                if component in selected_measurements
-            )
-            if selected_measurements is not None
-            else MEASUREMENT_SPECS.keys()
-        )
-        for component in components:
-            spec = MEASUREMENT_SPECS.get(component)
-            entity_key = (station_code, component)
-            reading = coordinator.data.measurements.get(entity_key)
-            if (
-                spec is None
-                or (known_entity_keys is not None and entity_key in known_entity_keys)
-                or reading is None
-                or reading.value is None
-                or reading.measurement_type is None
-            ):
-                continue
-
-            entities.append(MeasurementSensor(coordinator, station, component, spec))
-    return entities
 
 
 async def async_setup_entry(
@@ -132,217 +25,192 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensors from a config entry."""
 
-    coordinator = entry.runtime_data
-    preferences = dict(entry.data)
-    preferences.update(entry.options)
-    if CONF_STATIONS in preferences and CONF_MEASUREMENTS in preferences:
-        selected_stations = set(preferences[CONF_STATIONS])
-        selected_measurements = set(preferences[CONF_MEASUREMENTS])
-    else:
-        selected_stations = None
-        selected_measurements = None
-    LOGGER.debug(
-        "Starting sensor setup for entry %s (stations=%s, measurements=%s)",
-        entry.entry_id,
-        selected_stations,
-        selected_measurements,
-    )
-    _sync_entity_registry(hass, entry, selected_stations, selected_measurements)
-    entities = _build_entities(
-        coordinator,
-        selected_stations,
-        selected_measurements,
-    )
-    known_entity_keys = {
-        (entity._station_code, entity._component) for entity in entities
-    }
-    async_add_entities(entities)
-
-    def async_add_new_entities() -> None:
-        new_entities = _build_entities(
-            coordinator,
-            selected_stations,
-            selected_measurements,
-            known_entity_keys,
-        )
-        if not new_entities:
-            return
-
-        known_entity_keys.update(
-            {(entity._station_code, entity._component) for entity in new_entities}
-        )
-        async_add_entities(new_entities)
-
-    LOGGER.debug(
-        "Registering coordinator listener for entry %s",
-        entry.entry_id,
-    )
-    remove_listener = coordinator.async_add_listener(async_add_new_entities)
-    LOGGER.debug(
-        "Registered coordinator listener for entry %s",
-        entry.entry_id,
-    )
-    entry.async_on_unload(remove_listener)
+    _SensorPlatformSetup(hass, entry, async_add_entities).setup()
 
 
-class MeasurementSensor(CoordinatorEntity, SensorEntity):
-    """Measurement sensor backed by coordinator data."""
-
-    _attr_has_entity_name = True
-    _attr_should_poll = False
-    _attr_state_class = SensorStateClass.MEASUREMENT
+class _SensorPlatformSetup:
+    """Set up and extend sensor entities for one config entry."""
 
     def __init__(
         self,
-        coordinator: IntegrationCoordinator,
-        station: Station,
-        component: str,
-        measurement_spec: MeasurementSpec,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        async_add_entities: AddEntitiesCallback,
     ) -> None:
-        super().__init__(coordinator)
-        self._station_code = station.code
-        self._station = station
-        self._component = component
-        self._measurement_spec = measurement_spec
+        self.hass = hass
+        self.entry = entry
+        self.coordinator: IntegrationCoordinator = entry.runtime_data
+        self.async_add_entities = async_add_entities
+        self.station_filter, self.measurement_filter = self._selected_filters()
+        self.known_measurement_keys: set[MeasurementKey] = set()
 
-        self._attr_translation_key = measurement_spec.translation_key
-        self._attr_device_class = (
-            getattr(SensorDeviceClass, measurement_spec.device_class)
-            if measurement_spec.device_class is not None
-            else None
+    def setup(self) -> None:
+        """Set up the initial sensor entities and register future updates."""
+
+        LOGGER.debug(
+            "Starting sensor setup for entry %s (stations=%s, measurements=%s)",
+            self.entry.entry_id,
+            self.station_filter,
+            self.measurement_filter,
         )
-        self._attr_state_class = getattr(SensorStateClass, measurement_spec.state_class)
-        self._attr_icon = measurement_spec.icon
-        self._attr_suggested_display_precision = DISPLAY_PRECISION_BY_UNIT.get(
-            measurement_spec.unit
-        )
-        self._attr_unique_id = _build_unique_id(station.code, component)
-        self._attr_device_info = station_device_info(station)
+        self._sync_registry()
+        self._add_initial_entities()
+        self._register_listener()
 
-    @property
-    def available(self) -> bool:
-        return self._availability_state == "available"
+    def _sync_registry(self) -> None:
+        """Enable or disable registry entries to match explicit selections."""
 
-    @property
-    def native_value(self) -> float | None:
-        reading = self._reading
-        if reading is None:
-            return None
-        if self._component == "WR" and self._wind_speed_is_calm:
-            return None
-        return reading.value
+        if self.station_filter is None or self.measurement_filter is None:
+            return
 
-    @property
-    def native_unit_of_measurement(self) -> str:
-        reading = self._reading
-        return reading.unit if reading is not None else self._measurement_spec.unit
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        attributes = station_state_attributes(self._current_station)
-        reading = self._reading
-        if reading is not None and reading.measurement_type is not None:
-            attributes["interval"] = reading.measurement_type
-        return attributes
-
-    def async_write_ha_state(self) -> None:
-        self._log_unit_change()
-        self._log_interval_change()
-        super().async_write_ha_state()
-
-    @property
-    def _reading(self) -> SelectedMetric | None:
-        if self.coordinator.data is None:
-            return None
-        return self.coordinator.data.measurements.get(
-            (self._station_code, self._component)
-        )
-
-    @property
-    def _current_station(self) -> Station:
-        if self.coordinator.data is None:
-            return self._station
-        return self.coordinator.data.stations.get(self._station_code, self._station)
-
-    @property
-    def _availability_state(self) -> str:
-        reading = self._reading
-        if not self.coordinator.last_update_success:
-            return "coordinator_unavailable"
-        if reading is None or reading.value is None:
-            return "missing"
-        if (
-            self.coordinator.data is not None
-            and (self._station_code, self._component)
-            in self.coordinator.data.stale_measurements
+        selected_unique_ids = {
+            MeasurementSensor.build_unique_id(station_code, measurement_code)
+            for station_code in self.station_filter
+            for measurement_code in self.measurement_filter
+            if measurement_code in MEASUREMENT_SPECS
+        }
+        registry = er.async_get(self.hass)
+        for registry_entry in er.async_entries_for_config_entry(
+            registry, self.entry.entry_id
         ):
-            return "stale"
-        return "available"
-
-    @property
-    def _wind_speed_is_calm(self) -> bool:
-        if self.coordinator.data is None:
-            return False
-
-        wind_speed = self.coordinator.data.measurements.get((self._station_code, "WG"))
-        if wind_speed is None or wind_speed.value is None:
-            return False
-
-        if wind_speed.unit == "m/s":
-            return wind_speed.value < CALM_WIND_SPEED_MPS
-        if wind_speed.unit == "km/h":
-            return wind_speed.value / 3.6 < CALM_WIND_SPEED_MPS
-        return False
-
-    def _log_unit_change(self) -> None:
-        hass = getattr(self, "hass", None)
-        entity_id = getattr(self, "entity_id", None)
-        if hass is None or entity_id is None:
-            return
-
-        old_state = hass.states.get(entity_id)
-        if old_state is None:
-            return
-
-        previous_unit = old_state.attributes.get("unit_of_measurement")
-        if previous_unit is not None:
-            previous_unit = previous_unit.replace(
-                "\u00b5", unicodedata.normalize("NFKC", "\u00b5")
+            self._sync_registry_entry(
+                registry,
+                registry_entry,
+                selected_unique_ids,
             )
-        current_unit = self.native_unit_of_measurement
-        if previous_unit is None or previous_unit == current_unit:
-            return
 
-        LOGGER.warning(
-            "Unit of measurement for %s changed from %s to %s",
-            entity_id,
-            previous_unit,
-            current_unit,
-        )
+    def _sync_registry_entry(
+        self,
+        registry: er.EntityRegistry,
+        registry_entry: er.RegistryEntry,
+        selected_unique_ids: set[str],
+    ) -> None:
+        """Enable or disable one registry entry to match explicit selections."""
 
-    def _log_interval_change(self) -> None:
-        hass = getattr(self, "hass", None)
-        entity_id = getattr(self, "entity_id", None)
-        reading = self._reading
-        if hass is None or entity_id is None or reading is None:
-            return
-
-        old_state = hass.states.get(entity_id)
-        if old_state is None:
-            return
-
-        previous_interval = old_state.attributes.get("interval")
-        current_interval = reading.measurement_type
-        if (
-            previous_interval is None
-            or current_interval is None
-            or previous_interval == current_interval
+        if registry_entry.domain != "sensor" or not registry_entry.unique_id.startswith(
+            f"{DOMAIN}_"
         ):
             return
+        if registry_entry.unique_id in selected_unique_ids:
+            if registry_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION:
+                registry.async_update_entity(
+                    registry_entry.entity_id,
+                    disabled_by=None,
+                )
+            return
+        if registry_entry.disabled_by is None:
+            registry.async_update_entity(
+                registry_entry.entity_id,
+                disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+            )
 
-        LOGGER.warning(
-            "Interval for %s changed from %s to %s",
-            entity_id,
-            previous_interval,
-            current_interval,
+    def _add_initial_entities(self) -> None:
+        """Add the measurement entities available during initial setup."""
+
+        available_entities = self._available_entities()
+        self.known_measurement_keys = set(available_entities)
+        self.async_add_entities(available_entities.values())
+
+    def _register_listener(self) -> None:
+        """Register the coordinator listener that adds newly available entities."""
+
+        LOGGER.debug(
+            "Registering coordinator listener for entry %s",
+            self.entry.entry_id,
+        )
+        remove_listener = self.coordinator.async_add_listener(
+            self._handle_coordinator_update
+        )
+        LOGGER.debug(
+            "Registered coordinator listener for entry %s",
+            self.entry.entry_id,
+        )
+        self.entry.async_on_unload(remove_listener)
+
+    def _handle_coordinator_update(self) -> None:
+        """Add entities that became available after a coordinator update."""
+
+        available_entities = self._available_entities()
+        new_entities = {
+            measurement_key: entity
+            for measurement_key, entity in available_entities.items()
+            if measurement_key not in self.known_measurement_keys
+        }
+        if not new_entities:
+            return
+
+        self.known_measurement_keys.update(new_entities)
+        self.async_add_entities(new_entities.values())
+
+    def _available_entities(self) -> dict[MeasurementKey, MeasurementSensor]:
+        """Return the measurement entities that can currently be created."""
+
+        data = self.coordinator.data
+        if data is None:
+            return {}
+
+        measurements = data.measurements
+        measurement_codes = self._selected_measurement_codes()
+        entities: dict[MeasurementKey, MeasurementSensor] = {}
+        for station_code, station in self._selected_stations().items():
+            for measurement_code in measurement_codes:
+                measurement_key = (station_code, measurement_code)
+                reading = measurements.get(measurement_key)
+                if (
+                    reading is None
+                    or reading.value is None
+                    or reading.averaging_interval is None
+                ):
+                    continue
+
+                entities[measurement_key] = MeasurementSensor(
+                    self.coordinator,
+                    station,
+                    measurement_code,
+                    MEASUREMENT_SPECS[measurement_code],
+                )
+        return entities
+
+    def _selected_stations(self) -> dict[str, Station]:
+        """Return the stations that should currently create entities."""
+
+        data = self.coordinator.data
+        assert data is not None
+
+        stations = data.stations
+        if self.station_filter is None:
+            return stations
+
+        return {
+            station_code: station
+            for station_code, station in stations.items()
+            if station_code in self.station_filter
+        }
+
+    def _selected_filters(self) -> tuple[set[str] | None, set[str] | None]:
+        """Return the explicitly configured station and measurement filters."""
+
+        merged_entry_data = dict(self.entry.data)
+        merged_entry_data.update(self.entry.options)
+        if (
+            CONF_STATIONS not in merged_entry_data
+            or CONF_MEASUREMENTS not in merged_entry_data
+        ):
+            return None, None
+
+        return (
+            set(merged_entry_data[CONF_STATIONS]),
+            set(merged_entry_data[CONF_MEASUREMENTS]),
+        )
+
+    def _selected_measurement_codes(self) -> tuple[str, ...]:
+        """Return the measurement codes that should currently create entities."""
+
+        if self.measurement_filter is None:
+            return tuple(MEASUREMENT_SPECS)
+
+        return tuple(
+            measurement_code
+            for measurement_code in MEASUREMENT_SPECS
+            if measurement_code in self.measurement_filter
         )

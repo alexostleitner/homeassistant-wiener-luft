@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import logging
-
-from .measurements import MISSING_VALUES
-
-LOGGER = logging.getLogger(__name__)
+MISSING_VALUES = frozenset({"", "NE", "-999", "—", "---", "⸻"})
 
 
 def decode_payload(payload: str | bytes) -> str:
@@ -15,29 +11,33 @@ def decode_payload(payload: str | bytes) -> str:
     if isinstance(payload, str):
         return payload
 
-    for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+    for encoding in ("utf-8-sig", "utf-8", "cp1252"):
         try:
             return payload.decode(encoding)
         except UnicodeDecodeError:
             continue
-
-    return payload.decode("latin-1", errors="replace")
+    return payload.decode("latin-1")
 
 
 def parse_number(value: str | int | float | None) -> float | None:
     """Parse a source number, treating declared placeholders as missing."""
 
-    if value is None:
+    if value is None or is_missing_number(value):
         return None
     if isinstance(value, int | float):
-        return None if value == -999 else float(value)
-
-    text = value.strip()
-    if text.upper() in MISSING_VALUES:
-        return None
+        return float(value)
 
     try:
-        return float(text.replace(",", "."))
+        return float(value.strip().replace(",", "."))
     except ValueError:
-        LOGGER.warning("Could not parse numeric value %r", value)
         return None
+
+
+def is_missing_number(value: str | int | float | None) -> bool:
+    """Return whether a source number should be treated as missing."""
+
+    if value is None:
+        return True
+    if isinstance(value, int | float):
+        return value == -999
+    return value.strip().upper() in MISSING_VALUES

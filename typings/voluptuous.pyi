@@ -1,0 +1,6 @@
+from typing import Any
+
+class Schema:
+    def __init__(self, schema: Any) -> None: ...
+
+def Required(key: Any, default: Any = ...) -> Any: ...

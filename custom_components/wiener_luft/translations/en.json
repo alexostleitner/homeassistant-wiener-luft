@@ -65,6 +65,20 @@
       }
     }
   },
+  "exceptions": {
+    "measurements_cannot_connect": {
+      "message": "The current measurements API could not be reached."
+    },
+    "measurements_invalid_response": {
+      "message": "The current measurements API returned no usable data."
+    },
+    "stations_cannot_connect": {
+      "message": "The monitoring stations API could not be reached."
+    },
+    "stations_invalid_response": {
+      "message": "The monitoring stations API returned no usable data."
+    }
+  },
   "options": {
     "abort": {
       "measurements_cannot_connect": "The current measurements API could not be reached. URL: {url}",

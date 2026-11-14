@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "homeassistant-wiener-luft"
-version = "0.5.1"
+version = "0.6.0"
 description = "Community-maintained Home Assistant integration for Vienna's public air-quality and weather measurements."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -21,9 +21,34 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.39.9",
+    "complexipy>=6.0.1",
     "coverage>=7.6",
     "ruff>=0.15.19",
+    "vulture>=2.16",
 ]
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+strict = ["custom_components"]
+stubPath = "typings"
+reportMissingModuleSource = "none"
+ignore = ["tests/homeassistant_stubs.py"]
+
+[[tool.basedpyright.executionEnvironments]]
+root = "tests"
+extraPaths = ["."]
+reportArgumentType = "none"
+reportUnknownParameterType = "none"
+reportUnknownVariableType = "none"
+reportUnknownMemberType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownLambdaType = "none"
+reportMissingParameterType = "none"
+reportMissingTypeArgument = "none"
+reportAttributeAccessIssue = "none"
+reportOptionalMemberAccess = "none"
+reportTypedDictNotRequiredAccess = "none"
 
 [tool.ruff]
 target-version = "py314"
@@ -32,7 +57,25 @@ target-version = "py314"
 select = ["E", "F", "I", "B", "UP", "C90", "SIM", "RUF", "PERF"]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 8
+max-complexity = 6
+
+[tool.coverage.run]
+branch = true
+source = ["custom_components/wiener_luft"]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+
+[tool.complexipy]
+paths = ["custom_components", "tests"]
+max-complexity-allowed = 8
+check-script = false
+ignore-complexity = false
+
+[tool.vulture]
+exclude = ["tests/homeassistant_stubs.py"]
+ignore_names = ["VERSION", "async_get_options_flow", "_attr_*", "_config_entry"]
 
 [tool.setuptools.packages.find]
 include = ["custom_components*"]

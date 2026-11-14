@@ -65,6 +65,20 @@
       }
     }
   },
+  "exceptions": {
+    "measurements_cannot_connect": {
+      "message": "Die API für aktuelle Messwerte war nicht erreichbar."
+    },
+    "measurements_invalid_response": {
+      "message": "Die API für aktuelle Messwerte lieferte keine verwertbaren Daten."
+    },
+    "stations_cannot_connect": {
+      "message": "Die API für Messstationen war nicht erreichbar."
+    },
+    "stations_invalid_response": {
+      "message": "Die API für Messstationen lieferte keine verwertbaren Daten."
+    }
+  },
   "options": {
     "abort": {
       "measurements_cannot_connect": "Die API für aktuelle Messwerte war nicht erreichbar. URL: {url}",
