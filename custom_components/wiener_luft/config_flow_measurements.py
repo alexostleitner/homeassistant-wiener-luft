@@ -31,14 +31,14 @@ def measurement_defaults(
     selected_station_codes: list[str],
     selected_measurement_codes: list[str] | None = None,
 ) -> list[str]:
-    """Return measurement defaults, using saved selections when available."""
+    """Return supported saved selections, falling back to current availability."""
 
     counts = _count_available_measurements(integration_data, selected_station_codes)
     selectable_components = {
         component for component, count in counts.items() if count > 0
     }
     selected_components = set(selected_measurement_codes or ())
-    allowed_components = selected_components & selectable_components
+    allowed_components = selected_components & MEASUREMENT_SPECS.keys()
     if not allowed_components:
         allowed_components = selectable_components
 
@@ -60,7 +60,7 @@ def build_measurement_schema(
     options: list[dict[str, str]] = []
     for component in MEASUREMENT_SPECS:
         available_count = counts[component]
-        if available_count == 0:
+        if available_count == 0 and component not in defaults:
             continue
 
         label = f"{measurement_names[component]} ({available_count}/{station_count})"

@@ -659,6 +659,65 @@ class OptionsFlowTest(unittest.TestCase):
             measurement_selector["options"],
         )
 
+    def test_measurement_step_preserves_selection_when_a_value_is_missing(self) -> None:
+        flow = config_flow_module.IntegrationOptionsFlow()
+        flow._config_entry = make_entry(
+            data={"stations": ["STA1"], "measurements": ["PM25"]},
+            options={"stations": ["STA1"], "measurements": ["PM25", "O3"]},
+        )
+        flow.hass = make_hass()
+        data = make_flow_data(
+            {"STA1": make_station("STA1", "Alpha")},
+            {
+                ("STA1", "PM25"): make_metric(12.3, "1MW"),
+                ("STA1", "O3"): make_metric(None, None),
+            },
+        )
+
+        with patch.object(
+            config_flow_module,
+            "async_fetch_flow_data",
+            return_value=(data, None, None),
+        ):
+            form = asyncio.run(flow.async_step_init({"stations": ["STA1"]}))
+            field, defaults, selector = read_selector(form["data_schema"])
+            result = asyncio.run(flow.async_step_measurements({field: defaults}))
+
+        self.assertEqual(["PM25", "O3"], defaults)
+        self.assertEqual(
+            [
+                {"value": "PM25", "label": "PM2.5 (1/1)"},
+                {"value": "O3", "label": "Ozone (0/1)"},
+            ],
+            selector["options"],
+        )
+        self.assertEqual("create_entry", result["type"])
+        self.assertEqual(["PM25", "O3"], result["data"]["measurements"])
+
+    def test_measurement_step_preserves_selection_without_current_readings(
+        self,
+    ) -> None:
+        flow = config_flow_module.IntegrationOptionsFlow()
+        flow._config_entry = make_entry(
+            data={"stations": ["STA1"], "measurements": ["O3"]},
+        )
+        flow.hass = make_hass()
+        data = make_flow_data({"STA1": make_station("STA1", "Alpha")}, {})
+
+        with patch.object(
+            config_flow_module,
+            "async_fetch_flow_data",
+            return_value=(data, None, None),
+        ):
+            form = asyncio.run(flow.async_step_init({"stations": ["STA1"]}))
+            field, defaults, selector = read_selector(form["data_schema"])
+            result = asyncio.run(flow.async_step_measurements({field: defaults}))
+
+        self.assertEqual(["O3"], defaults)
+        self.assertEqual([{"value": "O3", "label": "Ozone (0/1)"}], selector["options"])
+        self.assertEqual("create_entry", result["type"])
+        self.assertEqual(["O3"], result["data"]["measurements"])
+
     def test_measurement_step_persists_snapshot(self) -> None:
         stations = {"STA1": make_station("STA1", "Alpha")}
         measurements = {("STA1", "PM25"): make_metric(12.3, "1MW")}
