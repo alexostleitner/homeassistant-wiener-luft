@@ -73,6 +73,9 @@ async def async_fetch_flow_data(
     return IntegrationData(stations=stations, measurements=measurements), None, None
 
 
+# Kept deliberately: switching to HA's translation helper also affects tests,
+# stubs and error behavior. A previous local simplification hid missing
+# entity/sensor sections behind fallback names; explicit validation was restored.
 async def async_get_measurement_names(hass: HomeAssistant) -> dict[str, str]:
     """Return localized measurement names from integration translations."""
 
