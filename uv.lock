@@ -109,7 +109,7 @@ wheels = [
 
 [[package]]
 name = "homeassistant-wiener-luft"
-version = "0.5.1"
+version = "0.6.0"
 source = { editable = "." }
 
 [package.dev-dependencies]
